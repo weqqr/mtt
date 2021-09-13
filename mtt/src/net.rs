@@ -4,6 +4,7 @@ use std::io::{Read, Write};
 use std::net::{ToSocketAddrs, UdpSocket};
 
 const PROTOCOL_ID: u32 = 0x4F457403;
+const SPLIT_THRESHOLD: usize = 400;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProtocolError {
@@ -64,33 +65,15 @@ pub enum PacketType {
     Original,
 }
 
-impl Serialize for PacketType {
-    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
-        match self {
-            PacketType::Control(control) => {
-                0u8.serialize(w)?;
-                control.serialize(w)?;
-            }
-            PacketType::Original => 1u8.serialize(w)?,
-        }
-
-        Ok(())
-    }
-
-    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
-        let ty = u8::deserialize(r)?;
-
-        Ok(match ty {
-            0 => PacketType::Control(Control::deserialize(r)?),
-            1 => PacketType::Original,
-            _ => bail!(ProtocolError::UnknownPacketType(ty)),
-        })
-    }
+pub enum Reliability {
+    Reliable { seqnum: u16 },
+    Unreliable,
 }
 
 pub struct PacketHeader {
     peer_id: u16,
     channel: u8,
+    reliability: Reliability,
     ty: PacketType,
 }
 
@@ -100,7 +83,19 @@ impl Serialize for PacketHeader {
 
         self.peer_id.serialize(w)?;
         self.channel.serialize(w)?;
-        self.ty.serialize(w)?;
+
+        if let Reliability::Reliable { seqnum } = self.reliability {
+            3u8.serialize(w)?;
+            seqnum.serialize(w)?;
+        }
+
+        match self.ty {
+            PacketType::Control(ref control) => {
+                0u8.serialize(w)?;
+                control.serialize(w)?;
+            }
+            PacketType::Original => 1u8.serialize(w)?,
+        }
 
         Ok(())
     }
@@ -112,9 +107,28 @@ impl Serialize for PacketHeader {
 
         let peer_id = u16::deserialize(r)?;
         let channel = u8::deserialize(r)?;
-        let ty = PacketType::deserialize(r)?;
+        let mut ty = u8::deserialize(r)?;
 
-        Ok(Self { peer_id, channel, ty })
+        let reliability = if ty == 3 {
+            let seqnum = u16::deserialize(r)?;
+            ty = u8::deserialize(r)?;
+            Reliability::Reliable { seqnum }
+        } else {
+            Reliability::Unreliable
+        };
+
+        let ty = match ty {
+            0 => PacketType::Control(Control::deserialize(r)?),
+            1 => PacketType::Original,
+            _ => bail!(ProtocolError::UnknownPacketType(ty)),
+        };
+
+        Ok(Self {
+            peer_id,
+            channel,
+            reliability,
+            ty,
+        })
     }
 }
 
@@ -129,6 +143,10 @@ impl Connection {
         socket.connect(address)?;
 
         Ok(Self { socket })
+    }
+
+    pub fn send_packet(&mut self, payload: &[u8], reliable: bool) -> Result<()> {
+        Ok(())
     }
 
     pub fn send_bytes(&mut self, bytes: &[u8]) -> Result<()> {
