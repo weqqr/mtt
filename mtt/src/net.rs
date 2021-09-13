@@ -120,6 +120,7 @@ impl Serialize for PacketHeader {
         let ty = match ty {
             0 => PacketType::Control(Control::deserialize(r)?),
             1 => PacketType::Original,
+            2 => todo!("split packets"),
             _ => bail!(ProtocolError::UnknownPacketType(ty)),
         };
 
@@ -134,6 +135,8 @@ impl Serialize for PacketHeader {
 
 pub struct Connection {
     socket: UdpSocket,
+    peer_id: u16,
+    seqnum: u16,
 }
 
 impl Connection {
@@ -142,15 +145,39 @@ impl Connection {
 
         socket.connect(address)?;
 
-        Ok(Self { socket })
+        Ok(Self {
+            socket,
+            seqnum: 0xFFDC,
+            peer_id: 0,
+        })
     }
 
-    pub fn send_packet(&mut self, payload: &[u8], reliable: bool) -> Result<()> {
-        Ok(())
-    }
+    pub fn send_payload(&mut self, payload: &[u8], reliable: bool) -> Result<()> {
+        if payload.len() > SPLIT_THRESHOLD {
+            todo!("split packets")
+        }
 
-    pub fn send_bytes(&mut self, bytes: &[u8]) -> Result<()> {
-        self.socket.send(bytes)?;
+        let reliability = if reliable {
+            let reliability = Reliability::Reliable { seqnum: self.seqnum };
+            self.seqnum = self.seqnum.wrapping_add(1);
+            reliability
+        } else {
+            Reliability::Unreliable
+        };
+
+        let packet_header = PacketHeader {
+            peer_id: self.peer_id,
+            channel: 0,
+            reliability,
+            ty: PacketType::Original,
+        };
+
+        let mut data = Vec::new();
+        packet_header.serialize(&mut data)?;
+        data.write(payload)?;
+
+        self.socket.send(&data)?;
+
         Ok(())
     }
 }
