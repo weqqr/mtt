@@ -4,6 +4,7 @@ mod net;
 mod renderer;
 mod serialize;
 
+use crate::renderer::Renderer;
 use anyhow::Result;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
@@ -12,6 +13,7 @@ use winit::window::{Window, WindowBuilder};
 
 pub struct App {
     window: Window,
+    renderer: Renderer,
 }
 
 impl App {
@@ -20,18 +22,27 @@ impl App {
             .with_min_inner_size(PhysicalSize::new(320, 180))
             .build(&event_loop)?;
 
-        Ok(Self { window })
+        let renderer = Renderer::new(&window)?;
+
+        Ok(Self { window, renderer })
+    }
+
+    fn handle_resize(&mut self, size: PhysicalSize<u32>) -> Option<ControlFlow> {
+        self.renderer.resize(size);
+
+        None
     }
 
     fn handle_event(&mut self, event: WindowEvent) -> Option<ControlFlow> {
         match event {
             WindowEvent::CloseRequested => Some(ControlFlow::Exit),
+            WindowEvent::Resized(size) => self.handle_resize(size),
             _ => None,
         }
     }
 
     fn repaint(&mut self) {
-
+        self.renderer.render().unwrap();
     }
 }
 
@@ -50,8 +61,8 @@ fn main() -> Result<()> {
                 if let Some(cf) = app.handle_event(event) {
                     *control_flow = cf;
                 }
-            },
-            RedrawRequested(_) | MainEventsCleared => app.repaint(),
+            }
+            RedrawRequested(_) => app.repaint(),
             _ => (),
         }
     });
