@@ -9,6 +9,7 @@ edition = "2018"
 anyhow = "1.0.43"
 byteorder = "1.4.3"
 thiserror = "1.0.29"
-wgpu = "0.10.1"
+wgpu = "0.10.2"
 winit = "0.25.0"
 pollster = "0.2.4"
+mtt_macros = { path = "../mtt_macros" }

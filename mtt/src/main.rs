@@ -4,10 +4,11 @@ mod net;
 mod renderer;
 mod serialize;
 
+use crate::net::serverbound::ServerBound;
 use crate::renderer::Renderer;
 use anyhow::Result;
 use winit::dpi::PhysicalSize;
-use winit::event::{Event, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -23,6 +24,8 @@ impl App {
             .build(&event_loop)?;
 
         let renderer = Renderer::new(&window)?;
+
+        let _packet = ServerBound::Hello { test: 0x57 };
 
         Ok(Self { window, renderer })
     }
@@ -52,7 +55,7 @@ fn main() -> Result<()> {
     let mut app = App::new(&event_loop)?;
 
     event_loop.run(move |event, _, control_flow| {
-        use Event::*;
+        use winit::event::Event::*;
 
         *control_flow = ControlFlow::Poll;
 
