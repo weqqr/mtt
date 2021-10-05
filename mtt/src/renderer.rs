@@ -97,6 +97,7 @@ impl Renderer {
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
+        println!("surface.configure");
         self.surface.configure(
             &self.device,
             &SurfaceConfiguration {

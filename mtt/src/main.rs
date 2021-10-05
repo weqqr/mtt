@@ -4,11 +4,11 @@ mod net;
 mod renderer;
 mod serialize;
 
-use crate::net::serverbound::ServerBound;
 use crate::renderer::Renderer;
 use anyhow::Result;
+use tokio::sync::mpsc;
 use winit::dpi::PhysicalSize;
-use winit::event::WindowEvent;
+use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
@@ -25,21 +25,27 @@ impl App {
 
         let renderer = Renderer::new(&window)?;
 
-        let _packet = ServerBound::Hello { test: 0x57 };
-
         Ok(Self { window, renderer })
     }
 
     fn handle_resize(&mut self, size: PhysicalSize<u32>) -> Option<ControlFlow> {
         self.renderer.resize(size);
-
         None
     }
 
-    fn handle_event(&mut self, event: WindowEvent) -> Option<ControlFlow> {
+    fn handle_event(&mut self, event: Event<()>) -> Option<ControlFlow> {
         match event {
-            WindowEvent::CloseRequested => Some(ControlFlow::Exit),
-            WindowEvent::Resized(size) => self.handle_resize(size),
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => Some(ControlFlow::Exit),
+                WindowEvent::Resized(size) => self.handle_resize(size),
+                _ => None,
+            },
+            Event::MainEventsCleared => {
+                println!("repaint");
+                self.repaint();
+                None
+            }
+            Event::RedrawRequested(_) => None,
             _ => None,
         }
     }
@@ -50,23 +56,38 @@ impl App {
 }
 
 fn main() -> Result<()> {
-    let event_loop = EventLoop::new();
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
 
+    let event_loop = EventLoop::new();
     let mut app = App::new(&event_loop)?;
 
-    event_loop.run(move |event, _, control_flow| {
-        use winit::event::Event::*;
+    let (event_tx, mut event_rx) = mpsc::channel(1);
+    let (control_tx, mut control_rx) = mpsc::channel(1);
 
+    rt.spawn(async move {
+        loop {
+            let event = event_rx.recv().await.unwrap();
+            let control_flow = app.handle_event(event);
+
+            if let Some(cf) = control_flow {
+                control_tx.send(cf).await.unwrap();
+            }
+
+            if let Some(ControlFlow::Exit) = control_flow {
+                break;
+            }
+        }
+    });
+
+    event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
-        match event {
-            WindowEvent { event, .. } => {
-                if let Some(cf) = app.handle_event(event) {
-                    *control_flow = cf;
-                }
-            }
-            RedrawRequested(_) => app.repaint(),
-            _ => (),
+        if !event_tx.is_closed() {
+            event_tx.blocking_send(event.to_static().unwrap()).unwrap();
+        }
+
+        if let Ok(cf) = control_rx.try_recv() {
+            *control_flow = cf;
         }
     });
 }

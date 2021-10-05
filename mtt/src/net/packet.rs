@@ -1,10 +1,8 @@
 use crate::serialize::Serialize;
 use anyhow::{bail, ensure, Result};
 use std::io::{Read, Write};
-use std::net::{ToSocketAddrs, UdpSocket};
 
 const PROTOCOL_ID: u32 = 0x4F457403;
-const SPLIT_THRESHOLD: usize = 400;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProtocolError {
@@ -71,10 +69,10 @@ pub enum Reliability {
 }
 
 pub struct PacketHeader {
-    peer_id: u16,
-    channel: u8,
-    reliability: Reliability,
-    ty: PacketType,
+    pub peer_id: u16,
+    pub channel: u8,
+    pub reliability: Reliability,
+    pub ty: PacketType,
 }
 
 impl Serialize for PacketHeader {
@@ -130,54 +128,5 @@ impl Serialize for PacketHeader {
             reliability,
             ty,
         })
-    }
-}
-
-pub struct Connection {
-    socket: UdpSocket,
-    peer_id: u16,
-    seqnum: u16,
-}
-
-impl Connection {
-    pub fn new<A: ToSocketAddrs>(address: A) -> Result<Self> {
-        let socket = UdpSocket::bind("0.0.0.0:0")?;
-
-        socket.connect(address)?;
-
-        Ok(Self {
-            socket,
-            seqnum: 0xFFDC,
-            peer_id: 0,
-        })
-    }
-
-    pub fn send_payload(&mut self, payload: &[u8], reliable: bool) -> Result<()> {
-        if payload.len() > SPLIT_THRESHOLD {
-            todo!("split packets")
-        }
-
-        let reliability = if reliable {
-            let reliability = Reliability::Reliable { seqnum: self.seqnum };
-            self.seqnum = self.seqnum.wrapping_add(1);
-            reliability
-        } else {
-            Reliability::Unreliable
-        };
-
-        let packet_header = PacketHeader {
-            peer_id: self.peer_id,
-            channel: 0,
-            reliability,
-            ty: PacketType::Original,
-        };
-
-        let mut data = Vec::new();
-        packet_header.serialize(&mut data)?;
-        data.write(payload)?;
-
-        self.socket.send(&data)?;
-
-        Ok(())
     }
 }
