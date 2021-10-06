@@ -16,6 +16,7 @@ pub enum ProtocolError {
     UnknownControlType(u8),
 }
 
+#[derive(Debug)]
 pub enum Control {
     Ack { seqnum: u16 },
     SetPeerId { peer_id: u16 },
@@ -58,16 +59,19 @@ impl Serialize for Control {
     }
 }
 
+#[derive(Debug)]
 pub enum PacketType {
     Control(Control),
     Original,
 }
 
+#[derive(Debug, Clone)]
 pub enum Reliability {
     Reliable { seqnum: u16 },
     Unreliable,
 }
 
+#[derive(Debug)]
 pub struct PacketHeader {
     pub peer_id: u16,
     pub channel: u8,

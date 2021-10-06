@@ -7,8 +7,8 @@ mod serialize;
 use crate::net::clientbound::ClientBound;
 use crate::net::serverbound::ServerBound;
 use crate::net::Connection;
+use crate::net::packet::PacketType;
 use crate::renderer::Renderer;
-use crate::serialize::Serialize;
 use anyhow::Result;
 use std::io::Cursor;
 use tokio::runtime::Runtime;
@@ -77,14 +77,27 @@ async fn connection_task<A: ToSocketAddrs>(address: A, mut serverbound_rx: Recei
 
     let mut conn = conn.unwrap();
 
-    println!("Connected");
-
     loop {
-        let mut data = Cursor::new(Vec::new());
-
-        let packet = serverbound_rx.recv().await.unwrap();
-        packet.serialize(&mut data).unwrap();
-        conn.send_packet(packet, false).await.unwrap();
+        tokio::select! {
+            packet = serverbound_rx.recv() => {
+                let packet = packet.unwrap();
+                conn.send_packet(packet, false).await.unwrap();
+            }
+            data = conn.receive_packet() => {
+                match data {
+                    Ok((_packet_header, Some(clientbound))) => {
+                        clientbound_tx.send(clientbound).await.unwrap();
+                    }
+                    Ok((packet_header, None)) => match packet_header.ty {
+                        PacketType::Control(control) => {
+                            conn.process_control(&control);
+                        }
+                        _ => (),
+                    }
+                    Err(err) => panic!("{:?}", err),
+                }
+            }
+        }
     }
 }
 
