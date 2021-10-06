@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{ItemEnum, Meta, MetaNameValue, Path, Variant, Lit};
+use syn::{ItemEnum, Meta, MetaNameValue, Variant, Lit};
 
 fn parse_id(variant: &Variant) -> Lit {
     variant
@@ -36,7 +36,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
 
         quote! {
             #ident::#v_ident { #(#field_names),* } => {
-                (#id as u8).serialize(w)?;
+                (#id as u16).serialize(w)?;
                 #(#serialize_fields)*
             }
         }
@@ -46,11 +46,6 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
         input.variants.iter().map(|variant| {
             let v_ident = &variant.ident;
             let id = parse_id(&variant);
-
-            let field_names = variant.fields.iter().map(|field| {
-                let ident = &field.ident;
-                quote! { ref #ident }
-            });
 
             let deserialize_fields = variant.fields.iter().map(|field| {
                 let ident = &field.ident;
@@ -80,7 +75,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
             }
 
             fn deserialize<R: std::io::Read>(r: &mut R) -> anyhow::Result<Self> {
-                let id = u8::deserialize(r)?;
+                let id = u16::deserialize(r)?;
                 match id {
                     #(#deserialize_fields),*
                     _ => anyhow::bail!("unknown packet id: {}", id),
@@ -105,7 +100,7 @@ fn make_packet_enum(input: &ItemEnum) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn packet(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn packet(_args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as ItemEnum);
     let packet_enum = make_packet_enum(&input);
     let serialize_impl = make_serialize_impl(&input);

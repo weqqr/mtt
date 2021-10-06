@@ -5,6 +5,7 @@ use std::io::{Write, Cursor};
 use tokio::net::{ToSocketAddrs, UdpSocket};
 use crate::net::serverbound::ServerBound;
 use crate::net::clientbound::ClientBound;
+use tokio::time::Duration;
 
 pub mod clientbound;
 pub mod packet;
@@ -18,8 +19,14 @@ pub struct Connection {
     seqnum: u16,
 }
 
+#[derive(Debug)]
+pub struct ReceivedPacket {
+    pub header: PacketHeader,
+    pub body: Option<ClientBound>,
+}
+
 impl Connection {
-    pub async fn connect<A: ToSocketAddrs>(address: A) -> Result<Self> {
+    pub async fn connect<A: ToSocketAddrs>(address: A, player_name: String) -> Result<Self> {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
 
         socket.connect(address).await?;
@@ -30,15 +37,54 @@ impl Connection {
             peer_id: 0,
         };
 
-        // Initiate connection with an empty reliable packet
-        conn.send(&[], true).await?;
+        let packet = ServerBound::Handshake {};
+        conn.send_and_wait_for(packet, true, 0, |packet| {
+            matches!(packet.header.ty, PacketType::Control(Control::SetPeerId {..}))
+        }).await?;
+
+        let packet = ServerBound::Init {
+            max_serialization_version: 28,
+            supported_compression_modes: 0,
+            min_protocol_version: 37,
+            max_protocol_version: 39,
+            player_name: player_name.clone(),
+        };
+        conn.send_and_wait_for(packet, true, 0, |packet| {
+            matches!(packet.body, Some(ClientBound::Hello { .. }))
+        }).await?;
 
         Ok(conn)
     }
 
+    pub async fn send_and_wait_for<F>(&mut self, packet: ServerBound, reliable: bool, channel: u8, criterion: F) -> Result<ReceivedPacket> where
+        F: Fn(&ReceivedPacket) -> bool
+    {
+        let mut resend_interval = tokio::time::interval(Duration::from_millis(100));
+        let timeout = tokio::time::sleep(Duration::from_secs(10));
+        tokio::pin!(timeout);
+        loop {
+            tokio::select! {
+                _ = resend_interval.tick() => {
+                    self.send_packet(packet.clone(), reliable, channel).await?;
+                }
+                packet = self.receive_packet() => {
+                    let packet = packet.unwrap();
+                    if criterion(&packet) {
+                        break Ok(packet);
+                    }
+                }
+                _ = &mut timeout => {
+                    anyhow::bail!("timed out");
+                }
+            }
+        }
+    }
+
     pub fn process_control(&mut self, control: &Control) {
         match control {
-            Control::Ack { seqnum } => {},
+            Control::Ack { seqnum } => {
+                println!("Server ACK {}", seqnum);
+            },
             Control::SetPeerId { peer_id } => {
                 println!("Setting peer_id = {}", peer_id);
                 self.peer_id = *peer_id;
@@ -48,59 +94,64 @@ impl Connection {
         }
     }
 
-    pub async fn receive_packet(&mut self) -> Result<(PacketHeader, Option<ClientBound>)> {
+    pub async fn receive_packet(&mut self) -> Result<ReceivedPacket> {
         let mut buf = [0; 1500];
         self.socket.recv(&mut buf).await?;
 
         let mut buf = Cursor::new(buf);
 
-        let packet_header = PacketHeader::deserialize(&mut buf)?;
+        let header = PacketHeader::deserialize(&mut buf)?;
 
-        let reliability = packet_header.reliability.clone();
+        let reliability = header.reliability.clone();
+        let channel = header.channel;
 
-        let data = match &packet_header.ty {
-            PacketType::Control(_) => {
-                Ok((packet_header, None))
+        let packet = match &header.ty {
+            PacketType::Control(control) => {
+                self.process_control(control);
+                Ok(ReceivedPacket {
+                    header,
+                    body: None,
+                })
             },
             PacketType::Original => {
                 let clientbound = ClientBound::deserialize(&mut buf)?;
-                Ok((packet_header, Some(clientbound)))
+                Ok(ReceivedPacket {
+                    header,
+                    body: Some(clientbound),
+                })
             },
         };
 
-        println!("RECV {:?}", data);
+        println!("RECV {:#?}", packet);
 
-        match reliability {
-            Reliability::Reliable { seqnum } => {
-                self.send_ack(seqnum).await?;
-            }
-            _ => (),
+        if let Reliability::Reliable { seqnum } = reliability {
+            self.send_ack(seqnum, channel).await.unwrap();
         }
 
-        data
+        packet
     }
 
-    pub async fn send_packet(&mut self, packet: ServerBound, reliable: bool) -> Result<()> {
-        println!("SEND {:?}", packet);
+    pub async fn send_packet(&mut self, packet: ServerBound, reliable: bool, channel: u8) -> Result<()> {
+        println!("SEND {:#?}", packet);
         let mut data = Vec::new();
         packet.serialize(&mut data)?;
-        self.send(&data, reliable).await?;
+        self.send(&data, reliable, channel).await?;
         Ok(())
     }
 
-    async fn send_ack(&mut self, seqnum: u16) -> Result<()> {
+    pub async fn send_ack(&mut self, seqnum: u16, channel: u8) -> Result<()> {
         let control = Control::Ack {
             seqnum,
         };
 
         let packet_header = PacketHeader {
             peer_id: self.peer_id,
-            channel: 0,
+            channel,
             reliability: Reliability::Unreliable,
             ty: PacketType::Control(control),
         };
 
-        println!("ACK  {:?}", packet_header);
+        println!("ACK  {:#?}", packet_header);
 
         let mut buf = Vec::new();
         packet_header.serialize(&mut buf)?;
@@ -109,7 +160,7 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn send(&mut self, payload: &[u8], reliable: bool) -> Result<()> {
+    pub async fn send(&mut self, payload: &[u8], reliable: bool, channel: u8) -> Result<()> {
         if payload.len() > SPLIT_THRESHOLD {
             todo!("split packets")
         }
@@ -124,7 +175,7 @@ impl Connection {
 
         let packet_header = PacketHeader {
             peer_id: self.peer_id,
-            channel: 0,
+            channel,
             reliability,
             ty: PacketType::Original,
         };

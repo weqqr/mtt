@@ -7,10 +7,9 @@ mod serialize;
 use crate::net::clientbound::ClientBound;
 use crate::net::serverbound::ServerBound;
 use crate::net::Connection;
-use crate::net::packet::PacketType;
 use crate::renderer::Renderer;
 use anyhow::Result;
-use std::io::Cursor;
+use tokio::net::ToSocketAddrs;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::task::JoinHandle;
@@ -19,7 +18,6 @@ use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
-use tokio::net::ToSocketAddrs;
 
 pub struct App {
     renderer: Renderer,
@@ -37,8 +35,14 @@ impl App {
         let renderer = runtime.block_on(Renderer::new(window))?;
 
         let (serverbound_tx, serverbound_rx) = mpsc::channel(1);
-        let (clientbound_tx, clientbound_rx) = mpsc::channel(1);
-        let connection_task = runtime.spawn(connection_task("127.0.0.1:30000", serverbound_rx, clientbound_tx));
+        let (clientbound_tx, clientbound_rx) = mpsc::channel(100);
+
+        let connection_task = runtime.spawn(connection_task(
+            std::env::args().nth(1).unwrap(),
+            serverbound_rx,
+            clientbound_tx,
+            std::env::args().nth(2).unwrap(),
+        ));
 
         Ok(Self {
             renderer,
@@ -66,8 +70,18 @@ impl App {
     }
 }
 
-async fn connection_task<A: ToSocketAddrs>(address: A, mut serverbound_rx: Receiver<ServerBound>, clientbound_tx: Sender<ClientBound>) {
-    let conn = Connection::connect(address);
+pub enum ConnectionStage {
+    Handshake,
+    Auth,
+}
+
+async fn connection_task<A: ToSocketAddrs>(
+    address: A,
+    mut serverbound_rx: Receiver<ServerBound>,
+    clientbound_tx: Sender<ClientBound>,
+    player_name: String,
+) {
+    let conn = Connection::connect(address, player_name);
     let conn = tokio::time::timeout(Duration::from_secs(5), conn);
 
     let conn = match conn.await {
@@ -76,25 +90,16 @@ async fn connection_task<A: ToSocketAddrs>(address: A, mut serverbound_rx: Recei
     };
 
     let mut conn = conn.unwrap();
-
     loop {
         tokio::select! {
             packet = serverbound_rx.recv() => {
                 let packet = packet.unwrap();
-                conn.send_packet(packet, false).await.unwrap();
+                conn.send_packet(packet, false, 1).await.unwrap();
             }
-            data = conn.receive_packet() => {
-                match data {
-                    Ok((_packet_header, Some(clientbound))) => {
-                        clientbound_tx.send(clientbound).await.unwrap();
-                    }
-                    Ok((packet_header, None)) => match packet_header.ty {
-                        PacketType::Control(control) => {
-                            conn.process_control(&control);
-                        }
-                        _ => (),
-                    }
-                    Err(err) => panic!("{:?}", err),
+            packet = conn.receive_packet() => {
+                let packet = packet.unwrap();
+                if let Some(clientbound) = packet.body {
+                    clientbound_tx.send(clientbound).await.unwrap();
                 }
             }
         }

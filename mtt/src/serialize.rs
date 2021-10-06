@@ -45,3 +45,20 @@ impl_serialize_for_primitive!(i64, read_i64, write_i64, BigEndian);
 
 impl_serialize_for_primitive!(f32, read_f32, write_f32, BigEndian);
 impl_serialize_for_primitive!(f64, read_f64, write_f64, BigEndian);
+
+impl Serialize for String {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        let size = self.len();
+        assert!(size < u16::MAX as usize);
+        (size as u16).serialize(w)?;
+        w.write_all(self.as_bytes())?;
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        let size = u16::deserialize(r)? as usize;
+        let mut data = vec![0; size];
+        r.read_exact(&mut data)?;
+        Ok(String::from_utf8(data)?)
+    }
+}
