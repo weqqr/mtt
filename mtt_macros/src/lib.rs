@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{ItemEnum, Meta, MetaNameValue, Variant, Lit};
+use syn::{ItemEnum, Lit, Meta, MetaNameValue, Variant};
 
 fn parse_id(variant: &Variant) -> Lit {
     variant
@@ -42,28 +42,27 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
         }
     });
 
-    let deserialize_fields =
-        input.variants.iter().map(|variant| {
-            let v_ident = &variant.ident;
-            let id = parse_id(&variant);
+    let deserialize_fields = input.variants.iter().map(|variant| {
+        let v_ident = &variant.ident;
+        let id = parse_id(&variant);
 
-            let deserialize_fields = variant.fields.iter().map(|field| {
-                let ident = &field.ident;
-                let ty = &field.ty;
-
-                quote! {
-                    #ident: #ty::deserialize(r)?,
-                }
-            });
+        let deserialize_fields = variant.fields.iter().map(|field| {
+            let ident = &field.ident;
+            let ty = &field.ty;
 
             quote! {
-                 #id => {
-                    Ok(#ident::#v_ident {
-                        #(#deserialize_fields)*
-                    })
-                }
+                #ident: #ty::deserialize(r)?,
             }
         });
+
+        quote! {
+             #id => {
+                Ok(#ident::#v_ident {
+                    #(#deserialize_fields)*
+                })
+            }
+        }
+    });
 
     quote! {
         impl crate::serialize::Serialize for #ident {
@@ -108,6 +107,5 @@ pub fn packet(_args: proc_macro::TokenStream, input: proc_macro::TokenStream) ->
         #packet_enum
         #serialize_impl
     };
-    // panic!("{}", tokens);
     tokens.into()
 }

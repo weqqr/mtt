@@ -11,4 +11,7 @@ pub enum ClientBound {
         supported_auth_modes: u32,
         legacy_player_name: String,
     },
+
+    #[id = 0x0029]
+    TimeOfDay { time: u16, time_speed: f32 },
 }

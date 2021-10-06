@@ -1,10 +1,10 @@
-use crate::net::packet::{PacketHeader, PacketType, Reliability, Control};
+use crate::net::clientbound::ClientBound;
+use crate::net::packet::{Control, PacketHeader, PacketType, Reliability};
+use crate::net::serverbound::ServerBound;
 use crate::serialize::Serialize;
 use anyhow::Result;
-use std::io::{Write, Cursor};
+use std::io::{Cursor, Write};
 use tokio::net::{ToSocketAddrs, UdpSocket};
-use crate::net::serverbound::ServerBound;
-use crate::net::clientbound::ClientBound;
 use tokio::time::Duration;
 
 pub mod clientbound;
@@ -39,8 +39,9 @@ impl Connection {
 
         let packet = ServerBound::Handshake {};
         conn.send_and_wait_for(packet, true, 0, |packet| {
-            matches!(packet.header.ty, PacketType::Control(Control::SetPeerId {..}))
-        }).await?;
+            matches!(packet.header.ty, PacketType::Control(Control::SetPeerId { .. }))
+        })
+        .await?;
 
         let packet = ServerBound::Init {
             max_serialization_version: 28,
@@ -49,15 +50,23 @@ impl Connection {
             max_protocol_version: 39,
             player_name: player_name.clone(),
         };
-        conn.send_and_wait_for(packet, true, 0, |packet| {
+        conn.send_and_wait_for(packet, false, 1, |packet| {
             matches!(packet.body, Some(ClientBound::Hello { .. }))
-        }).await?;
+        })
+        .await?;
 
         Ok(conn)
     }
 
-    pub async fn send_and_wait_for<F>(&mut self, packet: ServerBound, reliable: bool, channel: u8, criterion: F) -> Result<ReceivedPacket> where
-        F: Fn(&ReceivedPacket) -> bool
+    pub async fn send_and_wait_for<F>(
+        &mut self,
+        packet: ServerBound,
+        reliable: bool,
+        channel: u8,
+        criterion: F,
+    ) -> Result<ReceivedPacket>
+    where
+        F: Fn(&ReceivedPacket) -> bool,
     {
         let mut resend_interval = tokio::time::interval(Duration::from_millis(100));
         let timeout = tokio::time::sleep(Duration::from_secs(10));
@@ -84,7 +93,7 @@ impl Connection {
         match control {
             Control::Ack { seqnum } => {
                 println!("Server ACK {}", seqnum);
-            },
+            }
             Control::SetPeerId { peer_id } => {
                 println!("Setting peer_id = {}", peer_id);
                 self.peer_id = *peer_id;
@@ -108,18 +117,15 @@ impl Connection {
         let packet = match &header.ty {
             PacketType::Control(control) => {
                 self.process_control(control);
-                Ok(ReceivedPacket {
-                    header,
-                    body: None,
-                })
-            },
+                Ok(ReceivedPacket { header, body: None })
+            }
             PacketType::Original => {
                 let clientbound = ClientBound::deserialize(&mut buf)?;
                 Ok(ReceivedPacket {
                     header,
                     body: Some(clientbound),
                 })
-            },
+            }
         };
 
         println!("RECV {:#?}", packet);
@@ -139,10 +145,23 @@ impl Connection {
         Ok(())
     }
 
-    pub async fn send_ack(&mut self, seqnum: u16, channel: u8) -> Result<()> {
-        let control = Control::Ack {
-            seqnum,
+    pub async fn send_disconnect(&mut self) -> Result<()> {
+        let packet_header = PacketHeader {
+            peer_id: self.peer_id,
+            channel: 0,
+            reliability: Reliability::Unreliable,
+            ty: PacketType::Control(Control::Disco),
         };
+
+        let mut buf = Vec::new();
+        packet_header.serialize(&mut buf)?;
+
+        self.socket.send(&buf).await?;
+        Ok(())
+    }
+
+    pub async fn send_ack(&mut self, seqnum: u16, channel: u8) -> Result<()> {
+        let control = Control::Ack { seqnum };
 
         let packet_header = PacketHeader {
             peer_id: self.peer_id,

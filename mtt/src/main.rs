@@ -12,6 +12,7 @@ use anyhow::Result;
 use tokio::net::ToSocketAddrs;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::Duration;
 use winit::dpi::PhysicalSize;
@@ -24,6 +25,8 @@ pub struct App {
     serverbound_tx: Sender<ServerBound>,
     runtime: Runtime,
     connection_task: JoinHandle<()>,
+    clientbound_rx: Receiver<ClientBound>,
+    shutdown_tx: watch::Sender<bool>,
 }
 
 impl App {
@@ -36,11 +39,13 @@ impl App {
 
         let (serverbound_tx, serverbound_rx) = mpsc::channel(1);
         let (clientbound_tx, clientbound_rx) = mpsc::channel(100);
+        let (shutdown_tx, shutdown_rx) = watch::channel(false);
 
         let connection_task = runtime.spawn(connection_task(
             std::env::args().nth(1).unwrap(),
             serverbound_rx,
             clientbound_tx,
+            shutdown_rx,
             std::env::args().nth(2).unwrap(),
         ));
 
@@ -49,6 +54,8 @@ impl App {
             serverbound_tx,
             runtime,
             connection_task,
+            clientbound_rx,
+            shutdown_tx,
         })
     }
 
@@ -68,6 +75,10 @@ impl App {
     fn repaint(&mut self) {
         self.renderer.render().unwrap();
     }
+
+    fn shutdown(&mut self) {
+        self.shutdown_tx.send(true).unwrap();
+    }
 }
 
 pub enum ConnectionStage {
@@ -79,6 +90,7 @@ async fn connection_task<A: ToSocketAddrs>(
     address: A,
     mut serverbound_rx: Receiver<ServerBound>,
     clientbound_tx: Sender<ClientBound>,
+    mut shutdown_rx: watch::Receiver<bool>,
     player_name: String,
 ) {
     let conn = Connection::connect(address, player_name);
@@ -90,6 +102,7 @@ async fn connection_task<A: ToSocketAddrs>(
     };
 
     let mut conn = conn.unwrap();
+
     loop {
         tokio::select! {
             packet = serverbound_rx.recv() => {
@@ -101,6 +114,9 @@ async fn connection_task<A: ToSocketAddrs>(
                 if let Some(clientbound) = packet.body {
                     clientbound_tx.send(clientbound).await.unwrap();
                 }
+            }
+            _ = shutdown_rx.changed() => {
+                conn.send_disconnect().await.unwrap();
             }
         }
     }
@@ -123,6 +139,9 @@ fn main() -> Result<()> {
             }
             Event::MainEventsCleared => {
                 app.repaint();
+            }
+            Event::LoopDestroyed => {
+                app.shutdown();
             }
             _ => (),
         }
