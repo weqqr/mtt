@@ -1,14 +1,10 @@
 use anyhow::{Context, Result};
-use pollster::FutureExt;
-use wgpu::{
-    Adapter, Backends, Color, CommandEncoderDescriptor, Device, DeviceDescriptor, Features, Instance, Limits, LoadOp,
-    Operations, PowerPreference, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
-    RequestAdapterOptions, Surface, SurfaceConfiguration, TextureFormat, TextureUsages, TextureViewDescriptor,
-};
+use wgpu::*;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 pub struct Renderer {
+    window: Window,
     instance: Instance,
     surface: Surface,
     adapter: Adapter,
@@ -18,17 +14,17 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub fn new(window: &Window) -> Result<Self> {
+    pub async fn new(window: Window) -> Result<Self> {
         let instance = Instance::new(Backends::VULKAN);
 
-        let surface = unsafe { instance.create_surface(window) };
+        let surface = unsafe { instance.create_surface(&window) };
 
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
                 compatible_surface: Some(&surface),
                 power_preference: PowerPreference::HighPerformance,
             })
-            .block_on()
+            .await
             .context("no compatible adapter found")?;
 
         let (device, queue) = adapter
@@ -40,7 +36,7 @@ impl Renderer {
                 },
                 None,
             )
-            .block_on()?;
+            .await?;
 
         let surface_format = surface
             .get_preferred_format(&adapter)
@@ -59,6 +55,7 @@ impl Renderer {
         );
 
         Ok(Renderer {
+            window,
             instance,
             surface,
             adapter,
@@ -97,7 +94,6 @@ impl Renderer {
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
-        println!("surface.configure");
         self.surface.configure(
             &self.device,
             &SurfaceConfiguration {

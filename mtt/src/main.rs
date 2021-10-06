@@ -4,28 +4,48 @@ mod net;
 mod renderer;
 mod serialize;
 
+use crate::net::clientbound::ClientBound;
+use crate::net::serverbound::ServerBound;
+use crate::net::Connection;
 use crate::renderer::Renderer;
+use crate::serialize::Serialize;
 use anyhow::Result;
-use tokio::sync::mpsc;
+use std::io::Cursor;
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc::{self, Receiver, Sender};
+use tokio::task::JoinHandle;
+use tokio::time::Duration;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::{Window, WindowBuilder};
+use winit::window::WindowBuilder;
+use tokio::net::ToSocketAddrs;
 
 pub struct App {
-    window: Window,
     renderer: Renderer,
+    serverbound_tx: Sender<ServerBound>,
+    runtime: Runtime,
+    connection_task: JoinHandle<()>,
 }
 
 impl App {
-    pub fn new(event_loop: &EventLoop<()>) -> Result<Self> {
+    pub fn new(runtime: Runtime, event_loop: &EventLoop<()>) -> Result<Self> {
         let window = WindowBuilder::new()
             .with_min_inner_size(PhysicalSize::new(320, 180))
             .build(&event_loop)?;
 
-        let renderer = Renderer::new(&window)?;
+        let renderer = runtime.block_on(Renderer::new(window))?;
 
-        Ok(Self { window, renderer })
+        let (serverbound_tx, serverbound_rx) = mpsc::channel(1);
+        let (clientbound_tx, clientbound_rx) = mpsc::channel(1);
+        let connection_task = runtime.spawn(connection_task("127.0.0.1:30000", serverbound_rx, clientbound_tx));
+
+        Ok(Self {
+            renderer,
+            serverbound_tx,
+            runtime,
+            connection_task,
+        })
     }
 
     fn handle_resize(&mut self, size: PhysicalSize<u32>) -> Option<ControlFlow> {
@@ -33,19 +53,10 @@ impl App {
         None
     }
 
-    fn handle_event(&mut self, event: Event<()>) -> Option<ControlFlow> {
+    fn handle_event(&mut self, event: WindowEvent) -> Option<ControlFlow> {
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => Some(ControlFlow::Exit),
-                WindowEvent::Resized(size) => self.handle_resize(size),
-                _ => None,
-            },
-            Event::MainEventsCleared => {
-                println!("repaint");
-                self.repaint();
-                None
-            }
-            Event::RedrawRequested(_) => None,
+            WindowEvent::CloseRequested => Some(ControlFlow::Exit),
+            WindowEvent::Resized(size) => self.handle_resize(size),
             _ => None,
         }
     }
@@ -55,39 +66,47 @@ impl App {
     }
 }
 
+async fn connection_task<A: ToSocketAddrs>(address: A, mut serverbound_rx: Receiver<ServerBound>, clientbound_tx: Sender<ClientBound>) {
+    let conn = Connection::connect(address);
+    let conn = tokio::time::timeout(Duration::from_secs(5), conn);
+
+    let conn = match conn.await {
+        Ok(conn) => conn,
+        Err(_) => panic!("connection timed out"),
+    };
+
+    let mut conn = conn.unwrap();
+
+    println!("Connected");
+
+    loop {
+        let mut data = Cursor::new(Vec::new());
+
+        let packet = serverbound_rx.recv().await.unwrap();
+        packet.serialize(&mut data).unwrap();
+        conn.send_packet(packet, false).await.unwrap();
+    }
+}
+
 fn main() -> Result<()> {
-    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
 
     let event_loop = EventLoop::new();
-    let mut app = App::new(&event_loop)?;
-
-    let (event_tx, mut event_rx) = mpsc::channel(1);
-    let (control_tx, mut control_rx) = mpsc::channel(1);
-
-    rt.spawn(async move {
-        loop {
-            let event = event_rx.recv().await.unwrap();
-            let control_flow = app.handle_event(event);
-
-            if let Some(cf) = control_flow {
-                control_tx.send(cf).await.unwrap();
-            }
-
-            if let Some(ControlFlow::Exit) = control_flow {
-                break;
-            }
-        }
-    });
+    let mut app = App::new(runtime, &event_loop)?;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
-        if !event_tx.is_closed() {
-            event_tx.blocking_send(event.to_static().unwrap()).unwrap();
-        }
-
-        if let Ok(cf) = control_rx.try_recv() {
-            *control_flow = cf;
+        match event {
+            Event::WindowEvent { event, .. } => {
+                if let Some(cf) = app.handle_event(event) {
+                    *control_flow = cf;
+                }
+            }
+            Event::MainEventsCleared => {
+                app.repaint();
+            }
+            _ => (),
         }
     });
 }
