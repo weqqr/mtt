@@ -19,7 +19,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
 
     let serialize_fields = input.variants.iter().map(|variant| {
         let v_ident = &variant.ident;
-        let id = parse_id(&variant);
+        let id = parse_id(variant);
 
         let field_names = variant.fields.iter().map(|field| {
             let ident = &field.ident;
@@ -44,7 +44,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
 
     let deserialize_fields = input.variants.iter().map(|variant| {
         let v_ident = &variant.ident;
-        let id = parse_id(&variant);
+        let id = parse_id(variant);
 
         let deserialize_fields = variant.fields.iter().map(|field| {
             let ident = &field.ident;

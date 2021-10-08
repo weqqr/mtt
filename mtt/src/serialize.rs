@@ -66,9 +66,9 @@ impl Serialize for String {
 #[derive(Debug, Clone)]
 pub struct RawBytes16(pub Vec<u8>);
 
-impl Into<Vec<u8>> for RawBytes16 {
-    fn into(self) -> Vec<u8> {
-        self.0
+impl From<RawBytes16> for Vec<u8> {
+    fn from(bytes: RawBytes16) -> Vec<u8> {
+        bytes.0
     }
 }
 
@@ -92,9 +92,9 @@ impl Serialize for RawBytes16 {
 #[derive(Debug, Clone)]
 pub struct RawBytes32(pub Vec<u8>);
 
-impl Into<Vec<u8>> for RawBytes32 {
-    fn into(self) -> Vec<u8> {
-        self.0
+impl From<RawBytes32> for Vec<u8> {
+    fn from(bytes: RawBytes32) -> Vec<u8> {
+        bytes.0
     }
 }
 

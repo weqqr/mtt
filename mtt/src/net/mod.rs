@@ -203,7 +203,7 @@ impl Connection {
 
         let mut data = Vec::new();
         packet_header.serialize(&mut data)?;
-        data.write(payload)?;
+        data.write_all(payload)?;
 
         self.socket.send(&data).await?;
 

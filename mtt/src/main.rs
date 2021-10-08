@@ -38,7 +38,7 @@ impl App {
     pub fn new(runtime: Runtime, event_loop: &EventLoop<()>) -> Result<Self> {
         let window = WindowBuilder::new()
             .with_min_inner_size(PhysicalSize::new(320, 180))
-            .build(&event_loop)?;
+            .build(event_loop)?;
 
         let renderer = runtime.block_on(Renderer::new(window))?;
 
