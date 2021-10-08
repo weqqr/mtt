@@ -3,10 +3,10 @@ use crate::net::packet::{Control, PacketHeader, PacketType, Reliability};
 use crate::net::serverbound::ServerBound;
 use crate::serialize::Serialize;
 use anyhow::Result;
+use log::info;
 use std::io::{Cursor, Write};
 use tokio::net::{ToSocketAddrs, UdpSocket};
 use tokio::time::Duration;
-use log::info;
 
 pub mod clientbound;
 pub mod packet;
@@ -51,10 +51,11 @@ impl Connection {
             max_protocol_version: 39,
             player_name: player_name.clone(),
         };
-        let hello = conn.send_and_wait_for(packet, false, 1, |packet| {
-            matches!(packet.body, Some(ClientBound::Hello { .. }))
-        })
-        .await?;
+        let hello = conn
+            .send_and_wait_for(packet, false, 1, |packet| {
+                matches!(packet.body, Some(ClientBound::Hello { .. }))
+            })
+            .await?;
 
         Ok((conn, hello.body.unwrap()))
     }

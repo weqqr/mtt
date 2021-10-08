@@ -1,5 +1,5 @@
-use mtt_macros::packet;
 use crate::serialize::RawBytes16;
+use mtt_macros::packet;
 
 #[packet]
 #[derive(Debug, Clone)]
@@ -17,13 +17,8 @@ pub enum ServerBound {
     },
 
     #[id = 0x0051]
-    SrpBytesA {
-        data: RawBytes16,
-        based_on: u8,
-    },
+    SrpBytesA { data: RawBytes16, based_on: u8 },
 
     #[id = 0x0052]
-    SrpBytesM {
-        data: RawBytes16,
-    }
+    SrpBytesM { data: RawBytes16 },
 }
