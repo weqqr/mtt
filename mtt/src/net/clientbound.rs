@@ -1,4 +1,5 @@
 use mtt_macros::packet;
+use crate::serialize::RawBytes16;
 
 #[packet]
 #[derive(Debug, Clone)]
@@ -14,4 +15,10 @@ pub enum ClientBound {
 
     #[id = 0x0029]
     TimeOfDay { time: u16, time_speed: f32 },
+
+    #[id = 0x0060]
+    SrpBytesSB {
+        s: RawBytes16,
+        b: RawBytes16,
+    }
 }

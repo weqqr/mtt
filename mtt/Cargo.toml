@@ -13,3 +13,7 @@ wgpu = "0.10.2"
 winit = "0.25.0"
 mtt_macros = { path = "../mtt_macros" }
 tokio = { version = "1.12.0", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+srp =  { git = "https://github.com/weqqr/PAKEs", branch = "hn_xor_hg_fix" }
+sha2 = "0.9.8"
+log = "0.4.14"
+env_logger = "0.9.0"

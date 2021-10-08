@@ -6,6 +6,7 @@ use anyhow::Result;
 use std::io::{Cursor, Write};
 use tokio::net::{ToSocketAddrs, UdpSocket};
 use tokio::time::Duration;
+use log::info;
 
 pub mod clientbound;
 pub mod packet;
@@ -26,7 +27,7 @@ pub struct ReceivedPacket {
 }
 
 impl Connection {
-    pub async fn connect<A: ToSocketAddrs>(address: A, player_name: String) -> Result<Self> {
+    pub async fn connect<A: ToSocketAddrs>(address: A, player_name: String) -> Result<(Self, ClientBound)> {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
 
         socket.connect(address).await?;
@@ -50,12 +51,12 @@ impl Connection {
             max_protocol_version: 39,
             player_name: player_name.clone(),
         };
-        conn.send_and_wait_for(packet, false, 1, |packet| {
+        let hello = conn.send_and_wait_for(packet, false, 1, |packet| {
             matches!(packet.body, Some(ClientBound::Hello { .. }))
         })
         .await?;
 
-        Ok(conn)
+        Ok((conn, hello.body.unwrap()))
     }
 
     pub async fn send_and_wait_for<F>(
@@ -92,10 +93,10 @@ impl Connection {
     pub fn process_control(&mut self, control: &Control) {
         match control {
             Control::Ack { seqnum } => {
-                println!("Server ACK {}", seqnum);
+                info!("Server ACK {}", seqnum);
             }
             Control::SetPeerId { peer_id } => {
-                println!("Setting peer_id = {}", peer_id);
+                info!("Setting peer_id = {}", peer_id);
                 self.peer_id = *peer_id;
             }
             Control::Ping => {}
@@ -128,7 +129,7 @@ impl Connection {
             }
         };
 
-        println!("RECV {:#?}", packet);
+        info!("RECV {:?}", packet);
 
         if let Reliability::Reliable { seqnum } = reliability {
             self.send_ack(seqnum, channel).await.unwrap();
@@ -138,7 +139,7 @@ impl Connection {
     }
 
     pub async fn send_packet(&mut self, packet: ServerBound, reliable: bool, channel: u8) -> Result<()> {
-        println!("SEND {:#?}", packet);
+        info!("SEND {:?}", packet);
         let mut data = Vec::new();
         packet.serialize(&mut data)?;
         self.send(&data, reliable, channel).await?;
@@ -170,7 +171,7 @@ impl Connection {
             ty: PacketType::Control(control),
         };
 
-        println!("ACK  {:#?}", packet_header);
+        info!("ACK  {:?}", packet_header);
 
         let mut buf = Vec::new();
         packet_header.serialize(&mut buf)?;
