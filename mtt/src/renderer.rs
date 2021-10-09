@@ -23,6 +23,7 @@ impl Renderer {
             .request_adapter(&RequestAdapterOptions {
                 compatible_surface: Some(&surface),
                 power_preference: PowerPreference::HighPerformance,
+                force_fallback_adapter: false,
             })
             .await
             .context("no compatible adapter found")?;
@@ -66,14 +67,14 @@ impl Renderer {
     }
 
     pub fn render(&self) -> Result<()> {
-        let frame = self.surface.get_current_frame()?;
+        let frame = self.surface.get_current_texture()?;
 
         let mut encoder = self
             .device
             .create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         {
-            let view = frame.output.texture.create_view(&TextureViewDescriptor::default());
+            let view = frame.texture.create_view(&TextureViewDescriptor::default());
             encoder.begin_render_pass(&RenderPassDescriptor {
                 label: None,
                 color_attachments: &[RenderPassColorAttachment {
@@ -89,6 +90,7 @@ impl Renderer {
         }
 
         self.queue.submit(Some(encoder.finish()));
+        frame.present();
 
         Ok(())
     }

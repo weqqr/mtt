@@ -9,7 +9,7 @@ edition = "2018"
 anyhow = "1.0.44"
 byteorder = "1.4.3"
 thiserror = "1.0.29"
-wgpu = "0.10.2"
+wgpu = "0.11"
 winit = "0.25.0"
 mtt_macros = { path = "../mtt_macros" }
 tokio = { version = "1.12.0", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
