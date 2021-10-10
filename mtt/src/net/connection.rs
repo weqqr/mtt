@@ -26,37 +26,16 @@ pub struct ReceivedPacket {
 }
 
 impl Connection {
-    async fn connect<A: ToSocketAddrs>(address: A, player_name: String) -> Result<(Self, ClientBound)> {
+    async fn connect<A: ToSocketAddrs>(address: A) -> Result<Self> {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
 
         socket.connect(address).await?;
 
-        let mut conn = Self {
+        Ok(Self {
             socket,
             seqnum: [0xFFDC; 3],
             peer_id: 0,
-        };
-
-        let packet = ServerBound::Handshake {};
-        conn.send_and_wait_for(packet, true, 0, |packet| {
-            matches!(packet.header.ty, PacketType::Control(Control::SetPeerId { .. }))
         })
-        .await?;
-
-        let packet = ServerBound::Init {
-            max_serialization_version: 29,
-            supported_compression_modes: 0,
-            min_protocol_version: 40,
-            max_protocol_version: 40,
-            player_name: player_name.clone(),
-        };
-        let hello = conn
-            .send_and_wait_for(packet, false, 1, |packet| {
-                matches!(packet.body, Some(ClientBound::Hello { .. }))
-            })
-            .await?;
-
-        Ok((conn, hello.body.unwrap()))
     }
 
     async fn send_and_wait_for<F>(
@@ -219,35 +198,47 @@ pub enum Request {
         reliable: bool,
         channel: u8,
     },
-    Authenticate {
-        player_name: String,
-        password: String,
-    },
     Disconnect,
 }
 
 #[derive(Debug)]
 pub enum Response {
-    Error(anyhow::Error),
+    HandshakeComplete,
+    AuthComplete,
     Receive(ClientBound),
+    Error(anyhow::Error),
     Disconnect,
 }
 
-macro_rules! send_err {
-    ($e:expr, $channel:expr) => {
-        match $e {
-            Ok(value) => value,
-            Err(err) => match $channel.send(Response::Error(err)).await {
-                _ => return,
-            },
-        }
+async fn perform_handshake(conn: &mut Connection, player_name: &String, response_tx: &Sender<Response>) -> Result<()> {
+    let packet = ServerBound::Handshake {};
+    conn.send_and_wait_for(packet, true, 0, |packet| {
+        matches!(packet.header.ty, PacketType::Control(Control::SetPeerId { .. }))
+    })
+    .await?;
+
+    let packet = ServerBound::Init {
+        max_serialization_version: 29,
+        supported_compression_modes: 0,
+        min_protocol_version: 40,
+        max_protocol_version: 40,
+        player_name: player_name.clone(),
     };
+    let _hello = conn
+        .send_and_wait_for(packet, false, 1, |packet| {
+            matches!(packet.body, Some(ClientBound::Hello { .. }))
+        })
+        .await?;
+
+    response_tx.send(Response::HandshakeComplete).await?;
+
+    Ok(())
 }
 
 async fn perform_auth(
     conn: &mut Connection,
-    player_name: String,
-    password: String,
+    player_name: &String,
+    password: &String,
     response_tx: &Sender<Response>,
 ) -> Result<()> {
     // FIXME: use random values
@@ -285,7 +276,21 @@ async fn perform_auth(
     };
     conn.send_packet(packet, true, 1).await?;
 
+    response_tx.send(Response::AuthComplete).await?;
+
     Ok(())
+}
+
+macro_rules! send_err {
+    ($e:expr, $channel:expr) => {
+        match $e {
+            Ok(value) => value,
+            Err(err) => {
+                $channel.send(Response::Error(err)).await.unwrap();
+                return
+            },
+        }
+    };
 }
 
 pub(super) async fn connection_task<A: ToSocketAddrs>(
@@ -293,17 +298,25 @@ pub(super) async fn connection_task<A: ToSocketAddrs>(
     mut request_rx: Receiver<Request>,
     response_tx: Sender<Response>,
     player_name: String,
+    password: String,
 ) {
-    let conn = Connection::connect(address, player_name);
+    let conn = Connection::connect(address);
     let conn = tokio::time::timeout(Duration::from_secs(5), conn);
 
     let conn = match conn.await {
         Ok(conn) => conn,
         Err(_) => Err(anyhow::anyhow!("connection timed out")),
     };
-    let (mut conn, hello) = send_err!(conn, response_tx);
+    let mut conn = send_err!(conn, response_tx);
 
-    response_tx.send(Response::Receive(hello)).await.unwrap();
+    send_err!(
+        perform_handshake(&mut conn, &player_name, &response_tx).await,
+        response_tx
+    );
+    send_err!(
+        perform_auth(&mut conn, &player_name, &password, &response_tx).await,
+        response_tx
+    );
 
     loop {
         tokio::select! {
@@ -312,9 +325,6 @@ pub(super) async fn connection_task<A: ToSocketAddrs>(
                     Some(Request::Send { packet, reliable, channel }) => {
                         let packet = packet;
                         send_err!(conn.send_packet(packet, reliable, channel).await, response_tx);
-                    }
-                    Some(Request::Authenticate { player_name, password}) => {
-                        send_err!(perform_auth(&mut conn, player_name, password, &response_tx).await, response_tx);
                     }
                     None | Some(Request::Disconnect) => {
                         send_err!(conn.send_disconnect().await, response_tx);

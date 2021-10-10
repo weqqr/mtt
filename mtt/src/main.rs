@@ -35,7 +35,7 @@ impl App {
         let server_address = std::env::args().nth(1).unwrap();
         let player_name = std::env::args().nth(2).unwrap();
 
-        let (request_tx, response_rx) = connect(server_address, player_name.clone());
+        let (request_tx, response_rx) = connect(server_address, player_name.clone(), "".to_string());
 
         Ok(Self {
             renderer,
@@ -59,10 +59,6 @@ impl App {
 
     fn handle_packet(&mut self, packet: ClientBound) -> Result<()> {
         match packet {
-            ClientBound::Hello { .. } => self.request_tx.blocking_send(Request::Authenticate {
-                player_name: self.player_name.clone(),
-                password: "".to_string(),
-            })?,
             _ => println!("Ignoring {:?}", packet),
         }
 
@@ -75,6 +71,7 @@ impl App {
                 Response::Disconnect => (),
                 Response::Error(err) => panic!("{}", err),
                 Response::Receive(packet) => self.handle_packet(packet).unwrap(),
+                _ => (),
             }
         }
     }
