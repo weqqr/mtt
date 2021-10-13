@@ -16,6 +16,11 @@ pub enum ServerBound {
         player_name: String,
     },
 
+    #[id = 0x0011]
+    Init2 {
+        language_code: String,
+    },
+
     #[id = 0x0051]
     SrpBytesA { data: RawBytes16, based_on: u8 },
 

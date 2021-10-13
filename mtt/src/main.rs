@@ -6,6 +6,7 @@ mod renderer;
 mod serialize;
 
 use crate::net::clientbound::ClientBound;
+use crate::net::serverbound::ServerBound;
 use crate::net::{connect, Request, Response};
 use crate::renderer::Renderer;
 use anyhow::Result;
@@ -59,6 +60,13 @@ impl App {
 
     fn handle_packet(&mut self, packet: ClientBound) -> Result<()> {
         match packet {
+            ClientBound::AuthAccept { .. } => self.request_tx.blocking_send(Request::Send {
+                packet: ServerBound::Init2 {
+                    language_code: "".to_string(),
+                },
+                reliable: true,
+                channel: 0,
+            })?,
             _ => println!("Ignoring {:?}", packet),
         }
 

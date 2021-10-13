@@ -6,17 +6,59 @@ use anyhow::Result;
 use log::info;
 use sha2::Sha256;
 use srp::client::{srp_private_key, SrpClient};
-use std::io::{Cursor, Write};
+use std::collections::HashMap;
+use std::io::{Cursor, Read, Write};
 use tokio::net::{ToSocketAddrs, UdpSocket};
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::time::Duration;
 
 const SPLIT_THRESHOLD: usize = 400;
 
+pub struct IncompleteSplit {
+    received_chunks: usize,
+    chunks: Vec<Vec<u8>>,
+}
+
+impl IncompleteSplit {
+    pub fn new(chunk_count: u16) -> Self {
+        Self {
+            received_chunks: 0,
+            chunks: vec![Vec::new(); chunk_count as usize],
+        }
+    }
+
+    fn add_chunk(&mut self, chunk_number: u16, chunk: Vec<u8>) -> Result<()> {
+        let chunk_number = chunk_number as usize;
+        anyhow::ensure!(chunk_number < self.chunks.len());
+
+        if self.chunks[chunk_number].len() == 0 {
+            self.chunks[chunk_number] = chunk;
+        } else {
+            anyhow::bail!("attempt to set split chunk multiple times");
+        }
+
+        Ok(())
+    }
+
+    fn try_complete(&self) -> Option<Vec<u8>> {
+        if self.received_chunks != self.chunks.len() {
+            return None;
+        }
+
+        let mut data = Vec::new();
+        for chunk in &self.chunks {
+            data.extend_from_slice(&chunk);
+        }
+
+        Some(data)
+    }
+}
+
 pub struct Connection {
     socket: UdpSocket,
     peer_id: u16,
     seqnum: [u16; 3],
+    incoming_splits: HashMap<u16, IncompleteSplit>,
 }
 
 #[derive(Debug)]
@@ -35,6 +77,7 @@ impl Connection {
             socket,
             seqnum: [0xFFDC; 3],
             peer_id: 0,
+            incoming_splits: HashMap::new(),
         })
     }
 
@@ -105,6 +148,27 @@ impl Connection {
                     header,
                     body: Some(clientbound),
                 })
+            }
+            PacketType::Split(split) => {
+                let value = self
+                    .incoming_splits
+                    .entry(split.seqnum)
+                    .or_insert(IncompleteSplit::new(split.chunk_count));
+
+                let mut chunk_body = Vec::new();
+                buf.read_to_end(&mut chunk_body)?;
+                value.add_chunk(split.chunk_number, chunk_body)?;
+
+                match value.try_complete() {
+                    Some(body) => {
+                        let clientbound = ClientBound::deserialize(&mut Cursor::new(body))?;
+                        Ok(ReceivedPacket {
+                            header,
+                            body: Some(clientbound),
+                        })
+                    }
+                    None => Ok(ReceivedPacket { header, body: None }),
+                }
             }
         };
 
@@ -287,8 +351,8 @@ macro_rules! send_err {
             Ok(value) => value,
             Err(err) => {
                 $channel.send(Response::Error(err)).await.unwrap();
-                return
-            },
+                return;
+            }
         }
     };
 }

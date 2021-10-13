@@ -60,9 +60,33 @@ impl Serialize for Control {
 }
 
 #[derive(Debug)]
+pub struct Split {
+    pub seqnum: u16,
+    pub chunk_count: u16,
+    pub chunk_number: u16,
+}
+
+impl Serialize for Split {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        self.seqnum.serialize(w)?;
+        self.chunk_count.serialize(w)?;
+        self.chunk_number.serialize(w)
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        Ok(Self {
+            seqnum: u16::deserialize(r)?,
+            chunk_count: u16::deserialize(r)?,
+            chunk_number: u16::deserialize(r)?,
+        })
+    }
+}
+
+#[derive(Debug)]
 pub enum PacketType {
     Control(Control),
     Original,
+    Split(Split),
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +121,10 @@ impl Serialize for PacketHeader {
                 control.serialize(w)?;
             }
             PacketType::Original => 1u8.serialize(w)?,
+            PacketType::Split(ref split) => {
+                2u8.serialize(w)?;
+                split.serialize(w)?;
+            }
         }
 
         Ok(())
@@ -122,7 +150,7 @@ impl Serialize for PacketHeader {
         let ty = match ty {
             0 => PacketType::Control(Control::deserialize(r)?),
             1 => PacketType::Original,
-            2 => todo!("split packets"),
+            2 => PacketType::Split(Split::deserialize(r)?),
             _ => bail!(ProtocolError::UnknownPacketType(ty)),
         };
 
