@@ -1,5 +1,5 @@
 use crate::math::Vector3;
-use crate::serialize::RawBytes16;
+use crate::serialize::{RawBytes16, RawBytes32, Serialize};
 use mtt_macros::packet;
 
 #[packet]
@@ -24,6 +24,42 @@ pub enum ClientBound {
 
     #[id = 0x0029]
     TimeOfDay { time: u16, time_speed: f32 },
+
+    #[id = 0x002A]
+    CsmRestrictionFlags { flags: u64, range: u32 },
+
+    #[id = 0x003A]
+    NodeDef { data: RawBytes32 },
+
+    #[id = 0x003C]
+    AnnounceMedia {
+        // TODO
+    },
+
+    #[id = 0x003D]
+    ItemDef { data: RawBytes32 },
+
+    #[id = 0x0043]
+    DetachedInventory {
+        name: String,
+        // TODO
+    },
+
+    #[id = 0x0045]
+    Movement {
+        acceleration_default: f32,
+        acceleration_air: f32,
+        acceleration_fast: f32,
+        speed_walk: f32,
+        speed_crouch: f32,
+        speed_fast: f32,
+        speed_climb: f32,
+        speed_jump: f32,
+        liquid_fluidity: f32,
+        liquid_fluidity_smooth: f32,
+        liquid_sink: f32,
+        gravity: f32,
+    },
 
     #[id = 0x0060]
     SrpBytesSB { s: RawBytes16, b: RawBytes16 },

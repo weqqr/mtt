@@ -3,7 +3,7 @@ use crate::net::packet::{Control, PacketHeader, PacketType, Reliability};
 use crate::net::serverbound::ServerBound;
 use crate::serialize::{RawBytes16, Serialize};
 use anyhow::Result;
-use log::info;
+use log::{debug, info};
 use sha2::Sha256;
 use srp::client::{srp_private_key, SrpClient};
 use std::collections::HashMap;
@@ -14,6 +14,7 @@ use tokio::time::Duration;
 
 const SPLIT_THRESHOLD: usize = 400;
 
+#[derive(Debug)]
 pub struct IncompleteSplit {
     received_chunks: usize,
     chunks: Vec<Vec<u8>>,
@@ -33,6 +34,7 @@ impl IncompleteSplit {
 
         if self.chunks[chunk_number].len() == 0 {
             self.chunks[chunk_number] = chunk;
+            self.received_chunks += 1;
         } else {
             anyhow::bail!("attempt to set split chunk multiple times");
         }
@@ -115,7 +117,7 @@ impl Connection {
     fn process_control(&mut self, control: &Control) {
         match control {
             Control::Ack { seqnum } => {
-                info!("Server ACK {}", seqnum);
+                debug!("Server ACK {}", seqnum);
             }
             Control::SetPeerId { peer_id } => {
                 info!("Setting peer_id = {}", peer_id);
@@ -172,7 +174,7 @@ impl Connection {
             }
         };
 
-        info!("RECV {:?}", packet);
+        debug!("RECV {:?}", packet);
 
         if let Reliability::Reliable { seqnum } = reliability {
             self.send_ack(seqnum, channel).await.unwrap();
@@ -182,7 +184,7 @@ impl Connection {
     }
 
     async fn send_packet(&mut self, packet: ServerBound, reliable: bool, channel: u8) -> Result<()> {
-        info!("SEND {:?}", packet);
+        debug!("SEND {:?}", packet);
         let mut data = Vec::new();
         packet.serialize(&mut data)?;
         self.send(&data, reliable, channel).await?;
@@ -214,7 +216,7 @@ impl Connection {
             ty: PacketType::Control(control),
         };
 
-        info!("ACK  {:?}", packet_header);
+        debug!("ACK  {:?}", packet_header);
 
         let mut buf = Vec::new();
         packet_header.serialize(&mut buf)?;

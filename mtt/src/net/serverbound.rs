@@ -17,8 +17,16 @@ pub enum ServerBound {
     },
 
     #[id = 0x0011]
-    Init2 {
-        language_code: String,
+    Init2 { language_code: String },
+
+    #[id = 0x0043]
+    ClientReady {
+        version_major: u8,
+        version_minor: u8,
+        version_patch: u8,
+        reserved: u8,
+        full_version: String,
+        formspec_version: u16,
     },
 
     #[id = 0x0051]
