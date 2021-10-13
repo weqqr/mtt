@@ -1,5 +1,5 @@
 use crate::math::Vector3;
-use crate::serialize::{RawBytes16, RawBytes32, Serialize};
+use crate::serialize::{RawBytes16, RawBytes32};
 use mtt_macros::packet;
 
 #[packet]

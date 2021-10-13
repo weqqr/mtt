@@ -9,6 +9,14 @@ pub struct Vector3 {
     pub z: f32,
 }
 
+impl Vector3 {
+    pub const ZERO: Vector3 = Vector3::new(0.0, 0.0, 0.0);
+
+    pub const fn new(x: f32, y: f32, z: f32) -> Self {
+        Self { x, y, z }
+    }
+}
+
 impl Serialize for Vector3 {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
         self.x.serialize(w)?;

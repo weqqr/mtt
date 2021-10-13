@@ -1,17 +1,19 @@
 #![allow(dead_code)]
 
+mod client;
+mod game;
 mod math;
 mod net;
 mod renderer;
 mod serialize;
+mod world;
 
-use crate::net::clientbound::ClientBound;
-use crate::net::serverbound::ServerBound;
-use crate::net::{connect, Request, Response};
+use crate::client::Client;
+use crate::net::Credentials;
 use crate::renderer::Renderer;
+use crate::world::World;
 use anyhow::Result;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
@@ -20,9 +22,8 @@ use winit::window::WindowBuilder;
 pub struct App {
     renderer: Renderer,
     runtime: Runtime,
-    player_name: String,
-    request_tx: mpsc::Sender<Request>,
-    response_rx: mpsc::Receiver<Response>,
+    client: Client,
+    world: World,
 }
 
 impl App {
@@ -36,14 +37,21 @@ impl App {
         let server_address = std::env::args().nth(1).unwrap();
         let player_name = std::env::args().nth(2).unwrap();
 
-        let (request_tx, response_rx) = connect(server_address, player_name.clone(), "".to_string());
+        let client = Client::connect(
+            server_address,
+            Credentials {
+                name: player_name,
+                password: "".to_string(),
+            },
+        );
+
+        let world = World::new();
 
         Ok(Self {
             renderer,
             runtime,
-            player_name,
-            request_tx,
-            response_rx,
+            client,
+            world,
         })
     }
 
@@ -58,38 +66,12 @@ impl App {
         }
     }
 
-    fn handle_packet(&mut self, packet: ClientBound) -> Result<()> {
-        match packet {
-            ClientBound::AuthAccept { .. } => self.request_tx.blocking_send(Request::Send {
-                packet: ServerBound::Init2 {
-                    language_code: "".to_string(),
-                },
-                reliable: true,
-                channel: 0,
-            })?,
-            _ => println!("Ignoring {:?}", packet),
-        }
-
-        Ok(())
-    }
-
     fn update(&mut self) {
-        while let Ok(response) = self.response_rx.try_recv() {
-            match response {
-                Response::Disconnect => (),
-                Response::Error(err) => panic!("{}", err),
-                Response::Receive(packet) => self.handle_packet(packet).unwrap(),
-                _ => (),
-            }
-        }
+        self.client.process_packets(&mut self.world);
     }
 
     fn repaint(&mut self) {
         self.renderer.render().unwrap();
-    }
-
-    fn shutdown(&mut self) {
-        let _ = self.request_tx.blocking_send(Request::Disconnect);
     }
 }
 
@@ -114,9 +96,6 @@ fn main() -> Result<()> {
             Event::MainEventsCleared => {
                 app.update();
                 app.repaint();
-            }
-            Event::LoopDestroyed => {
-                app.shutdown();
             }
             _ => (),
         }
