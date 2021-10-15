@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{ItemEnum, Lit, Meta, MetaNameValue, Variant};
+use syn::{Data, DeriveInput, ItemEnum, Lit, Meta, MetaNameValue, Variant};
 
 fn parse_id(variant: &Variant) -> Lit {
     variant
@@ -17,7 +17,7 @@ fn parse_id(variant: &Variant) -> Lit {
 fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
     let ident = &input.ident;
 
-    let serialize_fields = input.variants.iter().map(|variant| {
+    let serialize_variants = input.variants.iter().map(|variant| {
         let v_ident = &variant.ident;
         let id = parse_id(variant);
 
@@ -42,7 +42,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
         }
     });
 
-    let deserialize_fields = input.variants.iter().map(|variant| {
+    let deserialize_variants = input.variants.iter().map(|variant| {
         let v_ident = &variant.ident;
         let id = parse_id(variant);
 
@@ -68,7 +68,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
         impl crate::serialize::Serialize for #ident {
             fn serialize<W: std::io::Write>(&self, w: &mut W) -> anyhow::Result<()> {
                 match self {
-                    #(#serialize_fields),*
+                    #(#serialize_variants),*
                 }
                 Ok(())
             }
@@ -76,7 +76,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
             fn deserialize<R: std::io::Read>(r: &mut R) -> anyhow::Result<Self> {
                 let id = u16::deserialize(r)?;
                 match id {
-                    #(#deserialize_fields),*
+                    #(#deserialize_variants),*
                     _ => anyhow::bail!("unknown packet id: {}", id),
                 }
             }
@@ -107,5 +107,53 @@ pub fn packet(_args: proc_macro::TokenStream, input: proc_macro::TokenStream) ->
         #packet_enum
         #serialize_impl
     };
+    tokens.into()
+}
+
+#[proc_macro_derive(Serialize)]
+pub fn derive_serialize(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+
+    let ident = input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    let data = if let Data::Struct(data) = input.data {
+        data
+    } else {
+        panic!("#[derive(Serialize)] only works with structs");
+    };
+
+    let serialize_fields = data.fields.iter().map(|field| {
+        let ident = &field.ident;
+
+        quote! {
+            self.#ident.serialize(w)?;
+        }
+    });
+
+    let deserialize_fields = data.fields.iter().map(|field| {
+        let ident = &field.ident;
+        let ty = &field.ty;
+
+        quote! {
+            #ident: #ty::deserialize(r)?,
+        }
+    });
+
+    let tokens = quote! {
+        impl #impl_generics crate::serialize::Serialize for #ident #ty_generics #where_clause {
+            fn serialize<W: std::io::Write>(&self, w: &mut W) -> anyhow::Result<()> {
+                #(#serialize_fields)*
+                Ok(())
+            }
+
+            fn deserialize<R: std::io::Read>(r: &mut R) -> anyhow::Result<Self> {
+                Ok(#ident {
+                    #(#deserialize_fields)*
+                })
+            }
+        }
+    };
+
     tokens.into()
 }

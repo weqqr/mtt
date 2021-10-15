@@ -18,11 +18,13 @@ use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
+use crate::game::Game;
 
 pub struct App {
     renderer: Renderer,
     runtime: Runtime,
     client: Client,
+    game: Game,
     world: World,
 }
 
@@ -45,12 +47,14 @@ impl App {
             },
         );
 
+        let game = Game::new();
         let world = World::new();
 
         Ok(Self {
             renderer,
             runtime,
             client,
+            game,
             world,
         })
     }
@@ -67,7 +71,7 @@ impl App {
     }
 
     fn update(&mut self) {
-        self.client.process_packets(&mut self.world);
+        self.client.process_packets(&mut self.game, &mut self.world);
     }
 
     fn repaint(&mut self) {

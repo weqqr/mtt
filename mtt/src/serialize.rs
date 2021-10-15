@@ -46,18 +46,29 @@ impl_serialize_for_primitive!(i64, read_i64, write_i64, BigEndian);
 impl_serialize_for_primitive!(f32, read_f32, write_f32, BigEndian);
 impl_serialize_for_primitive!(f64, read_f64, write_f64, BigEndian);
 
+impl Serialize for bool {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        (*self as u8).serialize(w)
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        u8::deserialize(r).map(|value| value != 0)
+    }
+}
+
+
 impl Serialize for String {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
-        let size = self.len();
-        assert!(size < u16::MAX as usize);
-        (size as u16).serialize(w)?;
+        let len = self.len();
+        assert!(len < u16::MAX as usize);
+        (len as u16).serialize(w)?;
         w.write_all(self.as_bytes())?;
         Ok(())
     }
 
     fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
-        let size = u16::deserialize(r)? as usize;
-        let mut data = vec![0; size];
+        let len = u16::deserialize(r)? as usize;
+        let mut data = vec![0; len];
         r.read_exact(&mut data)?;
         Ok(String::from_utf8(data)?)
     }
@@ -74,16 +85,16 @@ impl From<RawBytes16> for Vec<u8> {
 
 impl Serialize for RawBytes16 {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
-        let size = self.0.len();
-        assert!(size < u16::MAX as usize);
-        (size as u16).serialize(w)?;
+        let len = self.0.len();
+        assert!(len < u16::MAX as usize);
+        (len as u16).serialize(w)?;
         w.write_all(&self.0)?;
         Ok(())
     }
 
     fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
-        let size = u16::deserialize(r)? as usize;
-        let mut data = vec![0; size];
+        let len = u16::deserialize(r)? as usize;
+        let mut data = vec![0; len];
         r.read_exact(&mut data)?;
         Ok(RawBytes16(data))
     }
@@ -100,16 +111,16 @@ impl From<RawBytes32> for Vec<u8> {
 
 impl Serialize for RawBytes32 {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
-        let size = self.0.len();
-        assert!(size < u32::MAX as usize);
-        (size as u32).serialize(w)?;
+        let len = self.0.len();
+        assert!(len < u32::MAX as usize);
+        (len as u32).serialize(w)?;
         w.write_all(&self.0)?;
         Ok(())
     }
 
     fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
-        let size = u32::deserialize(r)? as usize;
-        let mut data = vec![0; size];
+        let len = u32::deserialize(r)? as usize;
+        let mut data = vec![0; len];
         r.read_exact(&mut data)?;
         Ok(RawBytes32(data))
     }

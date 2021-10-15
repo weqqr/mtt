@@ -1,5 +1,6 @@
 use crate::serialize::Serialize;
 use anyhow::Result;
+use mtt_macros::Serialize;
 use std::io::{Read, Write};
 
 #[derive(Debug, Clone, Copy)]
@@ -31,4 +32,10 @@ impl Serialize for Vector3 {
             z: f32::deserialize(r)?,
         })
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct Aabb {
+    min: Vector3,
+    max: Vector3,
 }

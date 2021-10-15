@@ -129,7 +129,7 @@ impl Connection {
     }
 
     pub async fn receive_packet(&mut self) -> Result<ReceivedPacket> {
-        let mut buf = [0; 1500];
+        let mut buf = [0; 512];
         self.socket.recv(&mut buf).await?;
 
         let mut buf = Cursor::new(buf);
@@ -159,11 +159,13 @@ impl Connection {
 
                 let mut chunk_body = Vec::new();
                 buf.read_to_end(&mut chunk_body)?;
+
                 value.add_chunk(split.chunk_number, chunk_body)?;
 
                 match value.try_complete() {
                     Some(body) => {
                         let clientbound = ClientBound::deserialize(&mut Cursor::new(body))?;
+                        self.incoming_splits.remove(&split.seqnum);
                         Ok(ReceivedPacket {
                             header,
                             body: Some(clientbound),
