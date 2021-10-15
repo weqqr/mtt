@@ -17,7 +17,9 @@ pub enum ServerBound {
     },
 
     #[id = 0x0011]
-    Init2 { language_code: String },
+    Init2 {
+        language_code: String,
+    },
 
     #[id = 0x0043]
     ClientReady {
@@ -30,8 +32,13 @@ pub enum ServerBound {
     },
 
     #[id = 0x0051]
-    SrpBytesA { data: RawBytes16, based_on: u8 },
+    SrpBytesA {
+        data: RawBytes16,
+        based_on: u8,
+    },
 
     #[id = 0x0052]
-    SrpBytesM { data: RawBytes16 },
+    SrpBytesM {
+        data: RawBytes16,
+    },
 }

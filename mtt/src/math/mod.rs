@@ -34,7 +34,36 @@ impl Serialize for Vector3 {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy)]
+pub struct Vector3i16 {
+    pub x: i16,
+    pub y: i16,
+    pub z: i16,
+}
+
+impl Vector3i16 {
+    pub const fn new(x: i16, y: i16, z: i16) -> Self {
+        Self { x, y, z }
+    }
+}
+
+impl Serialize for Vector3i16 {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        self.x.serialize(w)?;
+        self.y.serialize(w)?;
+        self.z.serialize(w)
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        Ok(Self {
+            x: i16::deserialize(r)?,
+            y: i16::deserialize(r)?,
+            z: i16::deserialize(r)?,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct Aabb {
     min: Vector3,
     max: Vector3,

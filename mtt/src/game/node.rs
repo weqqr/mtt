@@ -2,19 +2,23 @@ use crate::math::Aabb;
 use crate::serialize::Serialize;
 use anyhow::Result;
 use bitflags::bitflags;
-use flate2::read::ZlibDecoder;
-use log::info;
 use mtt_macros::Serialize;
 use std::collections::HashMap;
-use std::io::{Cursor, Read, Write};
+use std::io::{Read, Write};
 
-pub struct Item {}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TileAnimation {
     None,
-    VerticalFrames { aspect_w: u16, aspect_h: u16, length: f32 },
-    Sheet { frames_w: u8, frames_h: u8, length: f32 },
+    VerticalFrames {
+        aspect_w: u16,
+        aspect_h: u16,
+        length: f32,
+    },
+    Sheet {
+        frames_w: u8,
+        frames_h: u8,
+        length: f32,
+    },
 }
 
 impl Serialize for TileAnimation {
@@ -44,7 +48,7 @@ impl Serialize for TileAnimation {
 
 bitflags! {
     struct TileFlags: u16 {
-        const BACK_FACE_CULLING    = 1 << 0;
+        const BACK_FACE_CULLING   = 1 << 0;
         const TILEABLE_HORIZONTAL = 1 << 1;
         const TILEABLE_VERTICAL   = 1 << 2;
         const HAS_COLOR           = 1 << 3;
@@ -53,14 +57,14 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Rgb {
     pub r: u8,
     pub g: u8,
     pub b: u8,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Argb {
     pub a: u8,
     pub r: u8,
@@ -68,7 +72,7 @@ pub struct Argb {
     pub b: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Alignment {
     None,
     World,
@@ -91,7 +95,7 @@ impl Serialize for Alignment {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Tile {
     name: String,
     animation: TileAnimation,
@@ -143,14 +147,14 @@ impl Serialize for Tile {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Lighting {
     light_propagates: bool,
     sunlight_propagates: bool,
     light_source: u8,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Interaction {
     walkable: bool,
     pointable: bool,
@@ -161,7 +165,7 @@ pub struct Interaction {
     damage_per_second: u32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Liquid {
     ty: u8,
     alternative_flowing: String,
@@ -173,28 +177,24 @@ pub struct Liquid {
     floodable: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Boxes {
     boxes: Vec<Aabb>,
 }
 
 impl Serialize for Boxes {
     fn serialize<W: Write>(&self, _w: &mut W) -> Result<()> {
-        todo!()
+        unimplemented!()
     }
 
     fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
-        let len = u16::deserialize(r)?;
-        let mut boxes = Vec::new();
-        for _ in 0..len {
-            boxes.push(Aabb::deserialize(r)?);
-        }
-
-        Ok(Self { boxes })
+        Ok(Self {
+            boxes: Vec::<Aabb>::deserialize(r)?,
+        })
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NodeBoxConnectors {
     top: Boxes,
     bottom: Boxes,
@@ -204,7 +204,7 @@ pub struct NodeBoxConnectors {
     right: Boxes,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NodeBox {
     Regular,
     Leveled(Boxes),
@@ -253,7 +253,7 @@ impl Serialize for NodeBox {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Sound {
     name: String,
     gain: f32,
@@ -261,20 +261,73 @@ pub struct Sound {
     fade: f32,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Sounds {
     footstep: Sound,
     dig: Sound,
     dug: Sound,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub enum DrawType {
+    Normal,
+    AirLike,
+    Liquid,
+    FlowingLiquid,
+    GlassLike,
+    AllFaces,
+    AllFacesOptional,
+    TorchLike,
+    SignLike,
+    PlantLike,
+    FenceLike,
+    RailLike,
+    NodeBox,
+    GlassLikeFramed,
+    FireLike,
+    GlassLikeFramedOptional,
+    Mesh,
+    PlantLikeRooted,
+}
+
+impl Serialize for DrawType {
+    fn serialize<W: Write>(&self, _w: &mut W) -> Result<()> {
+        todo!()
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        let ty = u8::deserialize(r)?;
+        Ok(match ty {
+            0 => DrawType::Normal,
+            1 => DrawType::AirLike,
+            2 => DrawType::Liquid,
+            3 => DrawType::FlowingLiquid,
+            4 => DrawType::GlassLike,
+            5 => DrawType::AllFaces,
+            6 => DrawType::AllFacesOptional,
+            7 => DrawType::TorchLike,
+            8 => DrawType::SignLike,
+            9 => DrawType::PlantLike,
+            10 => DrawType::FenceLike,
+            11 => DrawType::RailLike,
+            12 => DrawType::NodeBox,
+            13 => DrawType::GlassLikeFramed,
+            14 => DrawType::FireLike,
+            15 => DrawType::GlassLikeFramedOptional,
+            16 => DrawType::Mesh,
+            17 => DrawType::PlantLikeRooted,
+            _ => anyhow::bail!("unknown DrawType: {}", ty),
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Node {
     name: String,
     groups: HashMap<String, i16>,
     param_type1: u8,
     param_type2: u8,
-    draw_type: u8,
+    draw_type: DrawType,
     mesh: Option<String>,
     visual_scale: f32,
     tiles: Vec<Tile>,
@@ -323,7 +376,7 @@ impl Serialize for Node {
         let param_type1 = u8::deserialize(r)?;
         let param_type2 = u8::deserialize(r)?;
 
-        let draw_type = u8::deserialize(r)?;
+        let draw_type = DrawType::deserialize(r)?;
         let mesh = String::deserialize(r)?;
         let mesh = mesh.is_empty().then(|| mesh);
 
@@ -335,7 +388,6 @@ impl Serialize for Node {
         let mut tiles = Vec::new();
         for _ in 0..tile_count {
             let tile = Tile::deserialize(r)?;
-            println!("{:?}", tile);
             tiles.push(tile);
         }
 
@@ -412,48 +464,5 @@ impl Serialize for Node {
             collision_box,
             sounds,
         })
-    }
-}
-
-pub struct Game {
-    items: Vec<Item>,
-    nodes: Vec<Node>,
-}
-
-impl Game {
-    pub fn new() -> Self {
-        Self {
-            items: Vec::new(),
-            nodes: Vec::new(),
-        }
-    }
-
-    pub fn deserialize_nodes(data: &[u8]) -> Result<Game> {
-        let mut game = Game::new();
-
-        let mut reader = ZlibDecoder::new(data);
-        let mut data = Vec::new();
-        reader.read_to_end(&mut data)?;
-
-        let mut reader = Cursor::new(data);
-        let version = u8::deserialize(&mut reader)?;
-        anyhow::ensure!(version == 1);
-
-        let count = u16::deserialize(&mut reader)?;
-        info!("Server sent {} nodes", count);
-
-        // Total length of serialized nodes
-        let _ = u32::deserialize(&mut reader)?;
-
-        for _ in 0..count {
-            // TODO: store node at this index
-            let _id = u16::deserialize(&mut reader)?;
-
-            let node = Node::deserialize(&mut reader)?;
-            println!("{:#?}", node);
-            game.nodes.push(node);
-        }
-
-        Ok(game)
     }
 }

@@ -9,6 +9,7 @@ mod serialize;
 mod world;
 
 use crate::client::Client;
+use crate::game::Game;
 use crate::net::Credentials;
 use crate::renderer::Renderer;
 use crate::world::World;
@@ -18,7 +19,6 @@ use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
-use crate::game::Game;
 
 pub struct App {
     renderer: Renderer,
@@ -92,7 +92,10 @@ fn main() -> Result<()> {
         *control_flow = ControlFlow::Poll;
 
         match event {
-            Event::WindowEvent { event, .. } => {
+            Event::WindowEvent {
+                event,
+                ..
+            } => {
                 if let Some(cf) = app.handle_event(event) {
                     *control_flow = cf;
                 }

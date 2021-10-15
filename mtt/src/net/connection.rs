@@ -116,10 +116,14 @@ impl Connection {
 
     fn process_control(&mut self, control: &Control) {
         match control {
-            Control::Ack { seqnum } => {
+            Control::Ack {
+                seqnum,
+            } => {
                 debug!("Server ACK {}", seqnum);
             }
-            Control::SetPeerId { peer_id } => {
+            Control::SetPeerId {
+                peer_id,
+            } => {
                 info!("Setting peer_id = {}", peer_id);
                 self.peer_id = *peer_id;
             }
@@ -142,7 +146,10 @@ impl Connection {
         let packet = match &header.ty {
             PacketType::Control(control) => {
                 self.process_control(control);
-                Ok(ReceivedPacket { header, body: None })
+                Ok(ReceivedPacket {
+                    header,
+                    body: None,
+                })
             }
             PacketType::Original => {
                 let clientbound = ClientBound::deserialize(&mut buf)?;
@@ -171,14 +178,20 @@ impl Connection {
                             body: Some(clientbound),
                         })
                     }
-                    None => Ok(ReceivedPacket { header, body: None }),
+                    None => Ok(ReceivedPacket {
+                        header,
+                        body: None,
+                    }),
                 }
             }
         };
 
         debug!("RECV {:?}", packet);
 
-        if let Reliability::Reliable { seqnum } = reliability {
+        if let Reliability::Reliable {
+            seqnum,
+        } = reliability
+        {
             self.send_ack(seqnum, channel).await.unwrap();
         }
 
@@ -209,7 +222,9 @@ impl Connection {
     }
 
     async fn send_ack(&mut self, seqnum: u16, channel: u8) -> Result<()> {
-        let control = Control::Ack { seqnum };
+        let control = Control::Ack {
+            seqnum,
+        };
 
         let packet_header = PacketHeader {
             peer_id: self.peer_id,
@@ -324,10 +339,15 @@ async fn perform_auth(
     let (salt, b_pub) = loop {
         let response = conn.receive_packet().await?;
         match response.body {
-            Some(ClientBound::Hello { .. }) => {
+            Some(ClientBound::Hello {
+                ..
+            }) => {
                 println!("Ignoring extraneous ClientBound::Hello during auth");
             }
-            Some(ClientBound::SrpBytesSB { s, b }) => break (s.0, b.0),
+            Some(ClientBound::SrpBytesSB {
+                s,
+                b,
+            }) => break (s.0, b.0),
             Some(packet) => response_tx.send(Response::Receive(packet)).await?,
             _ => (),
         }

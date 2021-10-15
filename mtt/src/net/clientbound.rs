@@ -1,5 +1,5 @@
-use crate::math::Vector3;
-use crate::serialize::{RawBytes16, RawBytes32};
+use crate::math::{Vector3, Vector3i16};
+use crate::serialize::{RawBytes16, RawBytes32, RawBytesUnsized};
 use mtt_macros::packet;
 
 #[packet]
@@ -22,14 +22,60 @@ pub enum ClientBound {
         supported_sudo_auth_methods: u32,
     },
 
+    #[id = 0x0020]
+    BlockData {
+        position: Vector3i16,
+        data: RawBytesUnsized,
+    },
+
+    #[id = 0x0027]
+    Inventory {
+        // TODO
+    },
+
     #[id = 0x0029]
-    TimeOfDay { time: u16, time_speed: f32 },
+    TimeOfDay {
+        time: u16,
+        time_speed: f32,
+    },
 
     #[id = 0x002A]
-    CsmRestrictionFlags { flags: u64, range: u32 },
+    CsmRestrictionFlags {
+        flags: u64,
+        range: u32,
+    },
+
+    #[id = 0x002F]
+    ChatMessage {
+        // TODO
+    },
+
+    #[id = 0x0031]
+    ActiveObjectRemoveAdd {
+        // TODO
+    },
+
+    #[id = 0x0032]
+    ActiveObjectMessages {
+        // TODO
+    },
+
+    #[id = 0x0033]
+    Hp {
+        hp: u16,
+    },
+
+    #[id = 0x0034]
+    MovePlayer {
+        position: Vector3,
+        pitch: f32,
+        yaw: f32,
+    },
 
     #[id = 0x003A]
-    NodeDef { data: RawBytes32 },
+    NodeDef {
+        data: RawBytes32,
+    },
 
     #[id = 0x003C]
     AnnounceMedia {
@@ -37,7 +83,19 @@ pub enum ClientBound {
     },
 
     #[id = 0x003D]
-    ItemDef { data: RawBytes32 },
+    ItemDef {
+        data: RawBytes32,
+    },
+
+    #[id = 0x0041]
+    Privileges {
+        // TODO
+    },
+
+    #[id = 0x0042]
+    InventoryFormspec {
+        // TODO
+    },
 
     #[id = 0x0043]
     DetachedInventory {
@@ -61,6 +119,34 @@ pub enum ClientBound {
         gravity: f32,
     },
 
+    #[id = 0x0049]
+    HudAdd {
+        // TODO
+    },
+
+    #[id = 0x004B]
+    HudChange {
+        // TODO
+    },
+
+    #[id = 0x004C]
+    HudSetFlags {
+        // TODO
+    },
+
+    #[id = 0x004E]
+    Breath {
+        breath: u16,
+    },
+
+    #[id = 0x0056]
+    UpdatePlayerList {
+        // TODO
+    },
+
     #[id = 0x0060]
-    SrpBytesSB { s: RawBytes16, b: RawBytes16 },
+    SrpBytesSB {
+        s: RawBytes16,
+        b: RawBytes16,
+    },
 }

@@ -56,7 +56,6 @@ impl Serialize for bool {
     }
 }
 
-
 impl Serialize for String {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
         let len = self.len();
@@ -71,6 +70,27 @@ impl Serialize for String {
         let mut data = vec![0; len];
         r.read_exact(&mut data)?;
         Ok(String::from_utf8(data)?)
+    }
+}
+
+impl<T: Serialize> Serialize for Vec<T> {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        let len = self.len();
+        anyhow::ensure!(len < u16::MAX as usize, "vec is too long to serialize");
+        (len as u16).serialize(w)?;
+        for value in self {
+            value.serialize(w)?;
+        }
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        let len = u16::deserialize(r)? as usize;
+        let mut values = Vec::with_capacity(len);
+        for _ in 0..len {
+            values.push(T::deserialize(r)?);
+        }
+        Ok(values)
     }
 }
 
@@ -96,7 +116,7 @@ impl Serialize for RawBytes16 {
         let len = u16::deserialize(r)? as usize;
         let mut data = vec![0; len];
         r.read_exact(&mut data)?;
-        Ok(RawBytes16(data))
+        Ok(Self(data))
     }
 }
 
@@ -122,6 +142,28 @@ impl Serialize for RawBytes32 {
         let len = u32::deserialize(r)? as usize;
         let mut data = vec![0; len];
         r.read_exact(&mut data)?;
-        Ok(RawBytes32(data))
+        Ok(Self(data))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RawBytesUnsized(pub Vec<u8>);
+
+impl From<RawBytesUnsized> for Vec<u8> {
+    fn from(bytes: RawBytesUnsized) -> Vec<u8> {
+        bytes.0
+    }
+}
+
+impl Serialize for RawBytesUnsized {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        w.write_all(&self.0)?;
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        let mut data = Vec::new();
+        r.read_to_end(&mut data)?;
+        Ok(Self(data))
     }
 }
