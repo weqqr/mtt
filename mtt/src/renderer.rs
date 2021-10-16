@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use wgpu::*;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
+use log::error;
 
 pub struct Renderer {
     window: Window,
@@ -14,18 +15,23 @@ pub struct Renderer {
     queue: Queue,
     surface_format: TextureFormat,
     pipeline_layout: PipelineLayout,
-    render_pipeline: RenderPipeline,
+    fullscreen_pipeline: RenderPipeline,
+    color_buffer: Buffer,
+    bind_group_layout: BindGroupLayout,
 }
 
 fn compile_glsl(source: &str, kind: ShaderKind) -> Vec<u32> {
     let mut compiler = Compiler::new().unwrap();
     let options = CompileOptions::new().unwrap();
 
-    compiler
-        .compile_into_spirv(source, kind, "<???>", "main", Some(&options))
-        .unwrap()
-        .as_binary()
-        .to_owned()
+    let artifact = compiler.compile_into_spirv(source, kind, "<???>", "main", Some(&options));
+    match artifact {
+        Ok(artifact) => artifact.as_binary().to_owned(),
+        Err(err) => {
+            error!("{}", err);
+            panic!();
+        },
+    }
 }
 
 impl Renderer {
@@ -83,13 +89,31 @@ impl Renderer {
             source: ShaderSource::SpirV(Cow::Owned(fragment_shader)),
         });
 
+        let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[
+                BindGroupLayoutEntry {
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage {
+                            read_only: true,
+                        },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                },
+            ],
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: None,
             push_constant_ranges: &[],
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&bind_group_layout],
         });
 
-        let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+        let fullscreen_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
             vertex: VertexState {
@@ -110,6 +134,21 @@ impl Renderer {
             }),
         });
 
+        let color_buffer = device.create_buffer(&BufferDescriptor {
+            label: None,
+            size: 4,
+            usage: BufferUsages::STORAGE,
+            mapped_at_creation: true,
+        });
+
+        {
+            let mut mapped_range = color_buffer.slice(..).get_mapped_range_mut();
+            let grey = bytemuck::bytes_of(&0.0f32);
+            mapped_range[0..4].copy_from_slice(grey);
+        }
+
+        color_buffer.unmap();
+
         Ok(Renderer {
             window,
             instance,
@@ -119,7 +158,9 @@ impl Renderer {
             queue,
             surface_format,
             pipeline_layout,
-            render_pipeline,
+            fullscreen_pipeline,
+            color_buffer,
+            bind_group_layout,
         })
     }
 
@@ -132,6 +173,17 @@ impl Renderer {
         };
 
         let frame = self.surface.get_current_texture()?;
+
+        let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &self.bind_group_layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: self.color_buffer.as_entire_binding(),
+                }
+            ],
+        });
 
         let mut encoder = self
             .device
@@ -151,7 +203,8 @@ impl Renderer {
                 }],
                 depth_stencil_attachment: None,
             });
-            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &bind_group, &[]);
+            render_pass.set_pipeline(&self.fullscreen_pipeline);
             render_pass.draw(0..3, 0..1);
         }
 
