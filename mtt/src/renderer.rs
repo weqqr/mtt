@@ -1,4 +1,6 @@
 use anyhow::{Context, Result};
+use shaderc::{CompileOptions, Compiler, ShaderKind};
+use std::borrow::Cow;
 use wgpu::*;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -11,6 +13,19 @@ pub struct Renderer {
     device: Device,
     queue: Queue,
     surface_format: TextureFormat,
+    pipeline_layout: PipelineLayout,
+    render_pipeline: RenderPipeline,
+}
+
+fn compile_glsl(source: &str, kind: ShaderKind) -> Vec<u32> {
+    let mut compiler = Compiler::new().unwrap();
+    let options = CompileOptions::new().unwrap();
+
+    compiler
+        .compile_into_spirv(source, kind, "<???>", "main", Some(&options))
+        .unwrap()
+        .as_binary()
+        .to_owned()
 }
 
 impl Renderer {
@@ -55,6 +70,46 @@ impl Renderer {
             },
         );
 
+        let vertex_shader = compile_glsl(include_str!("shaders/triangle.vert"), ShaderKind::Vertex);
+        let fragment_shader = compile_glsl(include_str!("shaders/triangle.frag"), ShaderKind::Fragment);
+
+        let vertex_shader = device.create_shader_module(&ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::SpirV(Cow::Owned(vertex_shader)),
+        });
+
+        let fragment_shader = device.create_shader_module(&ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::SpirV(Cow::Owned(fragment_shader)),
+        });
+
+        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: None,
+            push_constant_ranges: &[],
+            bind_group_layouts: &[],
+        });
+
+        let render_pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            vertex: VertexState {
+                module: &vertex_shader,
+                entry_point: "main",
+                buffers: &[],
+            },
+            primitive: PrimitiveState {
+                topology: PrimitiveTopology::TriangleList,
+                ..Default::default()
+            },
+            depth_stencil: None,
+            multisample: Default::default(),
+            fragment: Some(FragmentState {
+                module: &fragment_shader,
+                entry_point: "main",
+                targets: &[surface_format.into()],
+            }),
+        });
+
         Ok(Renderer {
             window,
             instance,
@@ -63,10 +118,19 @@ impl Renderer {
             device,
             queue,
             surface_format,
+            pipeline_layout,
+            render_pipeline,
         })
     }
 
     pub fn render(&self) -> Result<()> {
+        const SKY_COLOR: Color = Color {
+            r: 0.3,
+            g: 0.7,
+            b: 0.9,
+            a: 1.0,
+        };
+
         let frame = self.surface.get_current_texture()?;
 
         let mut encoder = self
@@ -75,18 +139,20 @@ impl Renderer {
 
         {
             let view = frame.texture.create_view(&TextureViewDescriptor::default());
-            encoder.begin_render_pass(&RenderPassDescriptor {
+            let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: None,
                 color_attachments: &[RenderPassColorAttachment {
                     view: &view,
                     ops: Operations {
-                        load: LoadOp::Clear(Color::GREEN),
+                        load: LoadOp::Clear(SKY_COLOR),
                         store: true,
                     },
                     resolve_target: None,
                 }],
                 depth_stencil_attachment: None,
             });
+            render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.draw(0..3, 0..1);
         }
 
         self.queue.submit(Some(encoder.finish()));
