@@ -69,9 +69,9 @@ impl Renderer {
     pub fn render(&self) -> Result<()> {
         let frame = self.surface.get_current_texture()?;
 
-        let mut encoder = self.device.create_command_encoder(&CommandEncoderDescriptor {
-            label: None,
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor { label: None });
 
         {
             let view = frame.texture.create_view(&TextureViewDescriptor::default());

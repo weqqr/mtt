@@ -40,7 +40,7 @@ impl Game {
         let _ = u32::deserialize(&mut reader)?;
 
         for _ in 0..count {
-            let id = u16::deserialize(&mut reader)?;
+            let _id = u16::deserialize(&mut reader)?;
             let node = Node::deserialize(&mut reader)?;
 
             // if id as usize >= game.nodes.len() {

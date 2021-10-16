@@ -22,13 +22,7 @@ where
     let (request_tx, request_rx) = mpsc::channel(10);
     let (response_tx, response_rx) = mpsc::channel(10);
 
-    let _ = tokio::spawn(connection_task(
-        address,
-        request_rx,
-        response_tx,
-        credentials.name,
-        credentials.password,
-    ));
+    let _ = tokio::spawn(connection_task(address, request_rx, response_tx, credentials));
 
     (request_tx, response_rx)
 }

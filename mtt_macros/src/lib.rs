@@ -8,10 +8,7 @@ fn parse_id(variant: &Variant) -> Lit {
         .iter()
         .find(|attr| attr.path.is_ident("id"))
         .map(|attr| match attr.parse_meta().unwrap() {
-            Meta::NameValue(MetaNameValue {
-                lit,
-                ..
-            }) => lit,
+            Meta::NameValue(MetaNameValue { lit, .. }) => lit,
             _ => panic!("id must be a name-value attribute"),
         })
         .unwrap()

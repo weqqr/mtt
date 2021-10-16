@@ -31,15 +31,11 @@ pub enum Control {
 impl Serialize for Control {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
         match self {
-            Control::Ack {
-                seqnum,
-            } => {
+            Control::Ack { seqnum } => {
                 0u8.serialize(w)?;
                 seqnum.serialize(w)?;
             }
-            Control::SetPeerId {
-                peer_id,
-            } => {
+            Control::SetPeerId { peer_id } => {
                 1u8.serialize(w)?;
                 peer_id.serialize(w)?;
             }
@@ -120,10 +116,7 @@ impl Serialize for PacketHeader {
         self.peer_id.serialize(w)?;
         self.channel.serialize(w)?;
 
-        if let Reliability::Reliable {
-            seqnum,
-        } = self.reliability
-        {
+        if let Reliability::Reliable { seqnum } = self.reliability {
             3u8.serialize(w)?;
             seqnum.serialize(w)?;
         }
@@ -155,9 +148,7 @@ impl Serialize for PacketHeader {
         let reliability = if ty == 3 {
             let seqnum = u16::deserialize(r)?;
             ty = u8::deserialize(r)?;
-            Reliability::Reliable {
-                seqnum,
-            }
+            Reliability::Reliable { seqnum }
         } else {
             Reliability::Unreliable
         };

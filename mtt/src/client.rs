@@ -24,25 +24,18 @@ impl Client {
 
     fn handle_packet(&mut self, game: &mut Game, world: &mut World, packet: ClientBound) -> Result<()> {
         match packet {
-            ClientBound::AuthAccept {
-                ..
-            } => self.request_tx.blocking_send(Request::Send {
+            ClientBound::AuthAccept { .. } => self.request_tx.blocking_send(Request::Send {
                 packet: ServerBound::Init2 {
                     language_code: "".to_string(),
                 },
                 reliable: true,
                 channel: 0,
             })?,
-            ClientBound::TimeOfDay {
-                time,
-                time_speed,
-            } => {
+            ClientBound::TimeOfDay { time, time_speed } => {
                 world.time = time as f32;
                 world.time_speed = time_speed;
             }
-            ClientBound::NodeDef {
-                data,
-            } => {
+            ClientBound::NodeDef { data } => {
                 *game = Game::deserialize_nodes(&data.0)?;
                 self.request_tx.blocking_send(Request::Send {
                     packet: ServerBound::ClientReady {

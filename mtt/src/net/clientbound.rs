@@ -1,5 +1,6 @@
+use crate::map::Block;
 use crate::math::{Vector3, Vector3i16};
-use crate::serialize::{RawBytes16, RawBytes32, RawBytesUnsized};
+use crate::serialize::{RawBytes16, RawBytes32};
 use mtt_macros::packet;
 
 #[packet]
@@ -25,7 +26,7 @@ pub enum ClientBound {
     #[id = 0x0020]
     BlockData {
         position: Vector3i16,
-        data: RawBytesUnsized,
+        block: Block,
     },
 
     #[id = 0x0027]

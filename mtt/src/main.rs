@@ -2,6 +2,7 @@
 
 mod client;
 mod game;
+mod map;
 mod math;
 mod net;
 mod renderer;
@@ -92,10 +93,7 @@ fn main() -> Result<()> {
         *control_flow = ControlFlow::Poll;
 
         match event {
-            Event::WindowEvent {
-                event,
-                ..
-            } => {
+            Event::WindowEvent { event, .. } => {
                 if let Some(cf) = app.handle_event(event) {
                     *control_flow = cf;
                 }

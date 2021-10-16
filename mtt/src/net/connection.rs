@@ -1,6 +1,7 @@
 use crate::net::clientbound::ClientBound;
 use crate::net::packet::{Control, PacketHeader, PacketType, Reliability};
 use crate::net::serverbound::ServerBound;
+use crate::net::Credentials;
 use crate::serialize::{RawBytes16, Serialize};
 use anyhow::Result;
 use log::{debug, info};
@@ -32,7 +33,7 @@ impl IncompleteSplit {
         let chunk_number = chunk_number as usize;
         anyhow::ensure!(chunk_number < self.chunks.len());
 
-        if self.chunks[chunk_number].len() == 0 {
+        if self.chunks[chunk_number].is_empty() {
             self.chunks[chunk_number] = chunk;
             self.received_chunks += 1;
         } else {
@@ -49,7 +50,7 @@ impl IncompleteSplit {
 
         let mut data = Vec::new();
         for chunk in &self.chunks {
-            data.extend_from_slice(&chunk);
+            data.extend_from_slice(chunk);
         }
 
         Some(data)
@@ -116,14 +117,10 @@ impl Connection {
 
     fn process_control(&mut self, control: &Control) {
         match control {
-            Control::Ack {
-                seqnum,
-            } => {
+            Control::Ack { seqnum } => {
                 debug!("Server ACK {}", seqnum);
             }
-            Control::SetPeerId {
-                peer_id,
-            } => {
+            Control::SetPeerId { peer_id } => {
                 info!("Setting peer_id = {}", peer_id);
                 self.peer_id = *peer_id;
             }
@@ -133,12 +130,11 @@ impl Connection {
     }
 
     pub async fn receive_packet(&mut self) -> Result<ReceivedPacket> {
-        let mut buf = [0; 512];
-        self.socket.recv(&mut buf).await?;
+        let mut buf = [0; 1500];
+        let len = self.socket.recv(&mut buf).await?;
+        let mut reader = Cursor::new(buf).take(len as u64);
 
-        let mut buf = Cursor::new(buf);
-
-        let header = PacketHeader::deserialize(&mut buf)?;
+        let header = PacketHeader::deserialize(&mut reader)?;
 
         let reliability = header.reliability.clone();
         let channel = header.channel;
@@ -146,13 +142,10 @@ impl Connection {
         let packet = match &header.ty {
             PacketType::Control(control) => {
                 self.process_control(control);
-                Ok(ReceivedPacket {
-                    header,
-                    body: None,
-                })
+                Ok(ReceivedPacket { header, body: None })
             }
             PacketType::Original => {
-                let clientbound = ClientBound::deserialize(&mut buf)?;
+                let clientbound = ClientBound::deserialize(&mut reader)?;
                 Ok(ReceivedPacket {
                     header,
                     body: Some(clientbound),
@@ -162,10 +155,10 @@ impl Connection {
                 let value = self
                     .incoming_splits
                     .entry(split.seqnum)
-                    .or_insert(IncompleteSplit::new(split.chunk_count));
+                    .or_insert_with(|| IncompleteSplit::new(split.chunk_count));
 
                 let mut chunk_body = Vec::new();
-                buf.read_to_end(&mut chunk_body)?;
+                reader.read_to_end(&mut chunk_body)?;
 
                 value.add_chunk(split.chunk_number, chunk_body)?;
 
@@ -178,20 +171,14 @@ impl Connection {
                             body: Some(clientbound),
                         })
                     }
-                    None => Ok(ReceivedPacket {
-                        header,
-                        body: None,
-                    }),
+                    None => Ok(ReceivedPacket { header, body: None }),
                 }
             }
         };
 
         debug!("RECV {:?}", packet);
 
-        if let Reliability::Reliable {
-            seqnum,
-        } = reliability
-        {
+        if let Reliability::Reliable { seqnum } = reliability {
             self.send_ack(seqnum, channel).await.unwrap();
         }
 
@@ -222,9 +209,7 @@ impl Connection {
     }
 
     async fn send_ack(&mut self, seqnum: u16, channel: u8) -> Result<()> {
-        let control = Control::Ack {
-            seqnum,
-        };
+        let control = Control::Ack { seqnum };
 
         let packet_header = PacketHeader {
             peer_id: self.peer_id,
@@ -293,7 +278,7 @@ pub enum Response {
     Disconnect,
 }
 
-async fn perform_handshake(conn: &mut Connection, player_name: &String, response_tx: &Sender<Response>) -> Result<()> {
+async fn perform_handshake(conn: &mut Connection, player_name: String, response_tx: &Sender<Response>) -> Result<()> {
     let packet = ServerBound::Handshake {};
     conn.send_and_wait_for(packet, true, 0, |packet| {
         matches!(packet.header.ty, PacketType::Control(Control::SetPeerId { .. }))
@@ -305,7 +290,7 @@ async fn perform_handshake(conn: &mut Connection, player_name: &String, response
         supported_compression_modes: 0,
         min_protocol_version: 40,
         max_protocol_version: 40,
-        player_name: player_name.clone(),
+        player_name,
     };
     let _hello = conn
         .send_and_wait_for(packet, false, 1, |packet| {
@@ -318,12 +303,7 @@ async fn perform_handshake(conn: &mut Connection, player_name: &String, response
     Ok(())
 }
 
-async fn perform_auth(
-    conn: &mut Connection,
-    player_name: &String,
-    password: &String,
-    response_tx: &Sender<Response>,
-) -> Result<()> {
+async fn perform_auth(conn: &mut Connection, credentials: &Credentials, response_tx: &Sender<Response>) -> Result<()> {
     // FIXME: use random values
     let a = [5; 64];
     let srp_client = SrpClient::<Sha256>::new(&a, &srp::groups::G_2048);
@@ -339,25 +319,20 @@ async fn perform_auth(
     let (salt, b_pub) = loop {
         let response = conn.receive_packet().await?;
         match response.body {
-            Some(ClientBound::Hello {
-                ..
-            }) => {
+            Some(ClientBound::Hello { .. }) => {
                 println!("Ignoring extraneous ClientBound::Hello during auth");
             }
-            Some(ClientBound::SrpBytesSB {
-                s,
-                b,
-            }) => break (s.0, b.0),
+            Some(ClientBound::SrpBytesSB { s, b }) => break (s.0, b.0),
             Some(packet) => response_tx.send(Response::Receive(packet)).await?,
             _ => (),
         }
     };
 
-    let lowercase_name = player_name.as_bytes().to_ascii_lowercase();
+    let lowercase_name = credentials.name.as_bytes().to_ascii_lowercase();
 
-    let private_key = srp_private_key::<Sha256>(&lowercase_name, password.as_bytes(), salt.as_slice());
+    let private_key = srp_private_key::<Sha256>(&lowercase_name, credentials.password.as_bytes(), salt.as_slice());
     let verifier = srp_client
-        .process_reply_with_username_and_salt(player_name.as_bytes(), &salt, &private_key, &b_pub)
+        .process_reply_with_username_and_salt(credentials.name.as_bytes(), &salt, &private_key, &b_pub)
         .unwrap();
     let packet = ServerBound::SrpBytesM {
         data: RawBytes16(verifier.get_proof().to_vec()),
@@ -385,8 +360,7 @@ pub(super) async fn connection_task<A: ToSocketAddrs>(
     address: A,
     mut request_rx: Receiver<Request>,
     response_tx: Sender<Response>,
-    player_name: String,
-    password: String,
+    credentials: Credentials,
 ) {
     let conn = Connection::connect(address);
     let conn = tokio::time::timeout(Duration::from_secs(5), conn);
@@ -398,13 +372,10 @@ pub(super) async fn connection_task<A: ToSocketAddrs>(
     let mut conn = send_err!(conn, response_tx);
 
     send_err!(
-        perform_handshake(&mut conn, &player_name, &response_tx).await,
+        perform_handshake(&mut conn, credentials.name.clone(), &response_tx).await,
         response_tx
     );
-    send_err!(
-        perform_auth(&mut conn, &player_name, &password, &response_tx).await,
-        response_tx
-    );
+    send_err!(perform_auth(&mut conn, &credentials, &response_tx).await, response_tx);
 
     loop {
         tokio::select! {
