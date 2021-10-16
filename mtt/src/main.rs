@@ -2,7 +2,6 @@
 
 mod client;
 mod game;
-mod map;
 mod math;
 mod net;
 mod renderer;
@@ -73,6 +72,8 @@ impl App {
 
     fn update(&mut self) {
         self.client.process_packets(&mut self.game, &mut self.world);
+
+        // TODO: upload blocks to GPU
     }
 
     fn repaint(&mut self) {

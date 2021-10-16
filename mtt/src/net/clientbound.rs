@@ -1,6 +1,6 @@
-use crate::map::Block;
 use crate::math::{Vector3, Vector3i16};
 use crate::serialize::{RawBytes16, RawBytes32};
+use crate::world::Block;
 use mtt_macros::packet;
 
 #[packet]

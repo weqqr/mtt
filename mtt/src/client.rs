@@ -49,7 +49,10 @@ impl Client {
                     reliable: true,
                     channel: 0,
                 })?;
-            }
+            },
+            ClientBound::BlockData { position, block } => {
+                world.map.update_or_set(position, block);
+            },
             _ => warn!("Ignoring {:?}", packet),
         }
 

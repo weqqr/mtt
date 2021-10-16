@@ -34,7 +34,7 @@ impl Serialize for Vector3 {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 pub struct Vector3i16 {
     pub x: i16,
     pub y: i16,
