@@ -8,6 +8,11 @@ layout (set = 0, binding = 0) readonly buffer Ssbo {
     float data[];
 } ssbo;
 
+layout (set = 0, binding = 1) uniform Ubo {
+    vec4 position;
+    vec4 look_dir;
+} ubo;
+
 void main() {
-    color = vec4(vec3(ssbo.data[0]), 1.0);
+    color = ubo.position;
 }
