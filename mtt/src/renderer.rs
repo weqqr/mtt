@@ -20,17 +20,17 @@ pub struct Renderer {
     fullscreen_pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
     color_buffer: Buffer,
-    uniform_buffer: Buffer,
+    view_buffer: Buffer,
 }
 
 #[derive(Clone, Copy, Pod)]
 #[repr(C)]
-pub struct ViewUniforms {
-    position: Vector4,
-    look_dir: Vector4,
+pub struct View {
+    pub position: Vector4,
+    pub look_dir: Vector4,
 }
 
-unsafe impl bytemuck::Zeroable for ViewUniforms {}
+unsafe impl bytemuck::Zeroable for View {}
 
 fn compile_glsl(source: &str, kind: ShaderKind) -> Vec<u32> {
     let mut compiler = Compiler::new().unwrap();
@@ -164,29 +164,31 @@ impl Renderer {
         {
             let mut mapped_range = color_buffer.slice(..).get_mapped_range_mut();
             let grey = bytemuck::bytes_of(&0.0f32);
-            mapped_range[0..4].copy_from_slice(grey);
+            mapped_range.copy_from_slice(grey);
         }
 
         color_buffer.unmap();
 
-        let uniform_buffer = device.create_buffer(&BufferDescriptor {
+        let view = View {
+            position: Vector4::new(0.1, 0.2, 0.3, 1.0),
+            look_dir: Vector4::new(1.0, 0.0, 0.0, 0.0),
+        };
+
+        let view_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
-            size: std::mem::size_of::<ViewUniforms>() as BufferAddress,
-            usage: BufferUsages::UNIFORM,
+            size: std::mem::size_of::<View>() as BufferAddress,
+            usage: BufferUsages::UNIFORM | BufferUsages::MAP_WRITE,
             mapped_at_creation: true,
         });
 
         {
-            let mut mapped_range = uniform_buffer.slice(..).get_mapped_range_mut();
-            let uniform = ViewUniforms {
-                position: Vector4::new(0.1, 0.2, 0.3, 1.0),
-                look_dir: Vector4::new(1.0, 0.0, 0.0, 0.0),
-            };
-            let grey = bytemuck::bytes_of(&uniform);
-            mapped_range[..std::mem::size_of::<ViewUniforms>()].copy_from_slice(grey);
+            let mut mapped_range = view_buffer.slice(..).get_mapped_range_mut();
+
+            let grey = bytemuck::bytes_of(&view);
+            mapped_range.copy_from_slice(grey);
         }
 
-        uniform_buffer.unmap();
+        view_buffer.unmap();
 
         Ok(Renderer {
             window,
@@ -200,8 +202,18 @@ impl Renderer {
             fullscreen_pipeline,
             bind_group_layout,
             color_buffer,
-            uniform_buffer,
+            view_buffer,
         })
+    }
+
+    pub fn set_view(&mut self, view: View) {
+        let _ = self.view_buffer.slice(..).map_async(MapMode::Write);
+
+        self.device.poll(Maintain::Wait);
+
+        let bytes = bytemuck::bytes_of(&view);
+        self.view_buffer.slice(..).get_mapped_range_mut().copy_from_slice(bytes);
+        self.view_buffer.unmap();
     }
 
     pub fn render(&self) -> Result<()> {
@@ -224,7 +236,7 @@ impl Renderer {
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: self.uniform_buffer.as_entire_binding(),
+                    resource: self.view_buffer.as_entire_binding(),
                 },
             ],
         });

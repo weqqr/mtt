@@ -6,13 +6,15 @@ use crate::math::Vector3;
 pub use crate::world::map::Map;
 
 pub struct Player {
-    position: Vector3,
+    pub position: Vector3,
+    pub look_dir: Vector3,
 }
 
 impl Player {
     pub fn new() -> Self {
         Self {
-            position: Vector3::ZERO,
+            position: Vector3::new(-10.0, 10.0, -10.0),
+            look_dir: Vector3::new(1.0, -1.0, 1.0).normalize(),
         }
     }
 }

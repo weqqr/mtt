@@ -7,6 +7,8 @@ use anyhow::Result;
 use log::warn;
 use tokio::sync::mpsc;
 
+const BS: f32 = 10.0;
+
 pub struct Client {
     request_tx: mpsc::Sender<Request>,
     response_rx: mpsc::Receiver<Response>,
@@ -49,6 +51,10 @@ impl Client {
                     reliable: true,
                     channel: 0,
                 })?;
+            },
+            ClientBound::MovePlayer { position, yaw, pitch } => {
+                world.player.position = position / BS;
+                println!("{:?}", world.player.position);
             },
             ClientBound::BlockData { position, block } => {
                 world.map.update_or_set(position, block);

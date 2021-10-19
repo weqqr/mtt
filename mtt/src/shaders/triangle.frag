@@ -14,5 +14,5 @@ layout (set = 0, binding = 1) uniform Ubo {
 } ubo;
 
 void main() {
-    color = ubo.position;
+    color = normalize(abs(ubo.position));
 }

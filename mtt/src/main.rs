@@ -11,7 +11,7 @@ mod world;
 use crate::client::Client;
 use crate::game::Game;
 use crate::net::Credentials;
-use crate::renderer::Renderer;
+use crate::renderer::{Renderer, View};
 use crate::world::World;
 use anyhow::Result;
 use tokio::runtime::Runtime;
@@ -72,7 +72,10 @@ impl App {
 
     fn update(&mut self) {
         self.client.process_packets(&mut self.game, &mut self.world);
-
+        self.renderer.set_view(View {
+            position: self.world.player.position.extend(0.0),
+            look_dir: self.world.player.look_dir.extend(0.0),
+        });
         // TODO: upload blocks to GPU
     }
 
