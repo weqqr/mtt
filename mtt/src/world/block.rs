@@ -6,8 +6,30 @@ pub struct Block {
     node_data: Vec<u8>,
 }
 
+#[derive(Debug)]
+pub struct Node {
+    pub id: u16,
+    pub param1: u8,
+    pub param2: u8,
+}
+
 impl Block {
     pub const SIZE: usize = 16;
+    pub const VOLUME: usize = Block::SIZE.pow(3);
+
+    pub fn get(&self, x: usize, y: usize, z: usize) -> Node {
+        let index = z * Block::SIZE * Block::SIZE + y * Block::SIZE + x;
+        let id_hi = self.node_data[2 * index];
+        let id_lo = self.node_data[2 * index + 1];
+        let param1 = self.node_data[2 * Block::VOLUME + index];
+        let param2 = self.node_data[3 * Block::VOLUME + index];
+
+        Node {
+            id: ((id_hi as u16) << 8) | id_lo as u16,
+            param1,
+            param2,
+        }
+    }
 }
 
 impl Serialize for Block {
@@ -41,7 +63,7 @@ impl Serialize for Block {
         anyhow::ensure!(content_width == 2, "invalid content width");
         anyhow::ensure!(params_width == 2, "invalid params width");
 
-        let mut node_data = vec![0; Block::SIZE.pow(3) * 4];
+        let mut node_data = vec![0; Block::VOLUME * 4];
         reader.read_exact(&mut node_data)?;
 
         Ok(Self { node_data })

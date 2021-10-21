@@ -1,10 +1,13 @@
 use crate::game::Game;
+use crate::math::Vector3;
 use crate::net::clientbound::ClientBound;
 use crate::net::serverbound::ServerBound;
 use crate::net::{connect, Credentials, Request, Response};
+use crate::serialize::{RawBytesUnsized, Serialize};
 use crate::world::World;
 use anyhow::Result;
 use log::warn;
+use std::io::Cursor;
 use tokio::sync::mpsc;
 
 const BS: f32 = 10.0;
@@ -51,14 +54,31 @@ impl Client {
                     reliable: true,
                     channel: 0,
                 })?;
-            },
+            }
             ClientBound::MovePlayer { position, yaw, pitch } => {
                 world.player.position = position / BS;
-                println!("{:?}", world.player.position);
-            },
+                // Adjust position by player height
+                // world.player.position.y += 1.6;
+                world.player.look_dir = Vector3::from_euler_angles(pitch, yaw);
+                println!(
+                    "pos={:?} pitch={} yaw={} look_dir={:?}",
+                    world.player.position, pitch, yaw, world.player.look_dir
+                );
+            }
             ClientBound::BlockData { position, block } => {
                 world.map.update_or_set(position, block);
-            },
+                let mut blocks = Cursor::new(Vec::new());
+                position.serialize(&mut blocks)?;
+
+                self.request_tx.blocking_send(Request::Send {
+                    packet: ServerBound::GotBlocks {
+                        count: 1,
+                        blocks: RawBytesUnsized(blocks.into_inner()),
+                    },
+                    reliable: true,
+                    channel: 0,
+                })?;
+            }
             _ => warn!("Ignoring {:?}", packet),
         }
 

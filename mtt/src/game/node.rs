@@ -149,37 +149,37 @@ impl Serialize for Tile {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Lighting {
-    light_propagates: bool,
-    sunlight_propagates: bool,
-    light_source: u8,
+    pub light_propagates: bool,
+    pub sunlight_propagates: bool,
+    pub light_source: u8,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Interaction {
-    walkable: bool,
-    pointable: bool,
-    diggable: bool,
-    climbable: bool,
-    buildable_to: bool,
-    rightclickable: bool,
-    damage_per_second: u32,
+    pub walkable: bool,
+    pub pointable: bool,
+    pub diggable: bool,
+    pub climbable: bool,
+    pub buildable_to: bool,
+    pub rightclickable: bool,
+    pub damage_per_second: u32,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Liquid {
-    ty: u8,
-    alternative_flowing: String,
-    alternative_source: String,
-    viscosity: u8,
-    renewable: bool,
-    range: u8,
-    drowning: u8,
-    floodable: bool,
+    pub ty: u8,
+    pub alternative_flowing: String,
+    pub alternative_source: String,
+    pub viscosity: u8,
+    pub renewable: bool,
+    pub range: u8,
+    pub drowning: u8,
+    pub floodable: bool,
 }
 
 #[derive(Debug, Clone)]
 pub struct Boxes {
-    boxes: Vec<Aabb>,
+    pub boxes: Vec<Aabb>,
 }
 
 impl Serialize for Boxes {
@@ -323,31 +323,31 @@ impl Serialize for DrawType {
 
 #[derive(Debug, Clone)]
 pub struct Node {
-    name: String,
-    groups: HashMap<String, i16>,
-    param_type1: u8,
-    param_type2: u8,
-    draw_type: DrawType,
-    mesh: Option<String>,
-    visual_scale: f32,
-    tiles: Vec<Tile>,
-    tiles_overlay: Vec<Tile>,
-    tiles_special: Vec<Tile>,
-    color: Rgb,
-    palette_name: String,
-    waving: u8,
-    connect_sides: u8,
-    connects_to: Vec<u16>,
-    post_effect_color: Argb,
-    leveled: u8,
-    lighting: Lighting,
-    is_ground_content: bool,
-    interaction: Interaction,
-    liquid: Liquid,
-    node_box: NodeBox,
-    selection_box: NodeBox,
-    collision_box: NodeBox,
-    sounds: Sounds,
+    pub name: String,
+    pub groups: HashMap<String, i16>,
+    pub param_type1: u8,
+    pub param_type2: u8,
+    pub draw_type: DrawType,
+    pub mesh: Option<String>,
+    pub visual_scale: f32,
+    pub tiles: Vec<Tile>,
+    pub tiles_overlay: Vec<Tile>,
+    pub tiles_special: Vec<Tile>,
+    pub color: Rgb,
+    pub palette_name: String,
+    pub waving: u8,
+    pub connect_sides: u8,
+    pub connects_to: Vec<u16>,
+    pub post_effect_color: Argb,
+    pub leveled: u8,
+    pub lighting: Lighting,
+    pub is_ground_content: bool,
+    // pub interaction: Interaction,
+    // pub liquid: Liquid,
+    // pub node_box: NodeBox,
+    // pub selection_box: NodeBox,
+    // pub collision_box: NodeBox,
+    // pub sounds: Sounds,
 }
 
 impl Serialize for Node {
@@ -420,12 +420,12 @@ impl Serialize for Node {
         let leveled = u8::deserialize(r)?;
         let lighting = Lighting::deserialize(r)?;
         let is_ground_content = bool::deserialize(r)?;
-        let interaction = Interaction::deserialize(r)?;
-        let liquid = Liquid::deserialize(r)?;
-        let node_box = NodeBox::deserialize(r)?;
-        let selection_box = NodeBox::deserialize(r)?;
-        let collision_box = NodeBox::deserialize(r)?;
-        let sounds = Sounds::deserialize(r)?;
+        let _interaction = Interaction::deserialize(r)?;
+        let _liquid = Liquid::deserialize(r)?;
+        let _node_box = NodeBox::deserialize(r)?;
+        let _selection_box = NodeBox::deserialize(r)?;
+        let _collision_box = NodeBox::deserialize(r)?;
+        let _sounds = Sounds::deserialize(r)?;
 
         let _ = u8::deserialize(r)?;
         let _ = u8::deserialize(r)?;
@@ -457,12 +457,12 @@ impl Serialize for Node {
             leveled,
             lighting,
             is_ground_content,
-            interaction,
-            liquid,
-            node_box,
-            selection_box,
-            collision_box,
-            sounds,
+            // interaction,
+            // liquid,
+            // node_box,
+            // selection_box,
+            // collision_box,
+            // sounds,
         })
     }
 }

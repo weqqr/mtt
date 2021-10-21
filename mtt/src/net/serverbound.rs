@@ -1,4 +1,4 @@
-use crate::serialize::RawBytes16;
+use crate::serialize::{RawBytes16, RawBytesUnsized};
 use mtt_macros::packet;
 
 #[packet]
@@ -19,6 +19,12 @@ pub enum ServerBound {
     #[id = 0x0011]
     Init2 {
         language_code: String,
+    },
+
+    #[id = 0x0024]
+    GotBlocks {
+        count: u8,
+        blocks: RawBytesUnsized,
     },
 
     #[id = 0x0043]

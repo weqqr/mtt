@@ -17,6 +17,17 @@ impl Vector3 {
         Self { x, y, z }
     }
 
+    pub fn from_euler_angles(pitch: f32, yaw: f32) -> Self {
+        // FIXME: figure out coordinate conversion
+        let pitch = -pitch.to_radians();
+        let yaw = (yaw + 90.0).to_radians();
+
+        let x = yaw.cos() * pitch.cos();
+        let y = pitch.sin();
+        let z = yaw.sin() * pitch.cos();
+        Self { x, y, z }.normalize()
+    }
+
     pub fn normalize(&self) -> Self {
         let len = self.len();
         Self {

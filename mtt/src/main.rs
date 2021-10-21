@@ -32,6 +32,7 @@ impl App {
     pub fn new(runtime: Runtime, event_loop: &EventLoop<()>) -> Result<Self> {
         let window = WindowBuilder::new()
             .with_min_inner_size(PhysicalSize::new(320, 180))
+            .with_inner_size(PhysicalSize::new(1280, 720))
             .build(event_loop)?;
 
         let renderer = runtime.block_on(Renderer::new(window))?;
@@ -75,8 +76,16 @@ impl App {
         self.renderer.set_view(View {
             position: self.world.player.position.extend(0.0),
             look_dir: self.world.player.look_dir.extend(0.0),
+            aspect_ratio: 16.0 / 9.0,
+            fov: 90.0,
         });
-        // TODO: upload blocks to GPU
+
+        for pos in &self.world.map.dirty_blocks() {
+            let block = self.world.map.get(pos);
+            if let Some(block) = block {
+                self.renderer.add_block(&self.game, *pos, block);
+            }
+        }
     }
 
     fn repaint(&mut self) {

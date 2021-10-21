@@ -1,9 +1,13 @@
-use bytemuck::Pod;
-use crate::math::Vector4;
+use crate::game::node::DrawType;
+use crate::game::Game;
+use crate::math::{Vector3i16, Vector4};
+use crate::world::Block;
 use anyhow::{Context, Result};
+use bytemuck::Pod;
 use log::error;
 use shaderc::{CompileOptions, Compiler, ShaderKind};
 use std::borrow::Cow;
+use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::*;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -16,11 +20,12 @@ pub struct Renderer {
     device: Device,
     queue: Queue,
     surface_format: TextureFormat,
+    depth_buffer: TextureView,
     pipeline_layout: PipelineLayout,
     fullscreen_pipeline: RenderPipeline,
     bind_group_layout: BindGroupLayout,
-    color_buffer: Buffer,
     view_buffer: Buffer,
+    blocks: Vec<Buffer>,
 }
 
 #[derive(Clone, Copy, Pod)]
@@ -28,6 +33,8 @@ pub struct Renderer {
 pub struct View {
     pub position: Vector4,
     pub look_dir: Vector4,
+    pub aspect_ratio: f32,
+    pub fov: f32,
 }
 
 unsafe impl bytemuck::Zeroable for View {}
@@ -66,7 +73,7 @@ impl Renderer {
                 &DeviceDescriptor {
                     label: None,
                     limits: Limits::default(),
-                    features: Features::empty(),
+                    features: Features::SPIRV_SHADER_PASSTHROUGH,
                 },
                 None,
             )
@@ -91,15 +98,35 @@ impl Renderer {
         let vertex_shader = compile_glsl(include_str!("shaders/triangle.vert"), ShaderKind::Vertex);
         let fragment_shader = compile_glsl(include_str!("shaders/triangle.frag"), ShaderKind::Fragment);
 
-        let vertex_shader = device.create_shader_module(&ShaderModuleDescriptor {
+        let vertex_shader = unsafe {
+            device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
+                label: None,
+                source: Cow::Owned(vertex_shader),
+            })
+        };
+
+        let fragment_shader = unsafe {
+            device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
+                label: None,
+                source: Cow::Owned(fragment_shader),
+            })
+        };
+
+        let depth_buffer = device.create_texture(&TextureDescriptor {
             label: None,
-            source: ShaderSource::SpirV(Cow::Owned(vertex_shader)),
+            size: Extent3d {
+                width: 1280,
+                height: 720,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::Depth24Plus,
+            usage: TextureUsages::RENDER_ATTACHMENT,
         });
 
-        let fragment_shader = device.create_shader_module(&ShaderModuleDescriptor {
-            label: None,
-            source: ShaderSource::SpirV(Cow::Owned(fragment_shader)),
-        });
+        let depth_buffer = depth_buffer.create_view(&TextureViewDescriptor::default());
 
         let bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: None,
@@ -145,7 +172,13 @@ impl Renderer {
                 topology: PrimitiveTopology::TriangleList,
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: TextureFormat::Depth24Plus,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: Default::default(),
             fragment: Some(FragmentState {
                 module: &fragment_shader,
@@ -154,24 +187,11 @@ impl Renderer {
             }),
         });
 
-        let color_buffer = device.create_buffer(&BufferDescriptor {
-            label: None,
-            size: 4,
-            usage: BufferUsages::STORAGE,
-            mapped_at_creation: true,
-        });
-
-        {
-            let mut mapped_range = color_buffer.slice(..).get_mapped_range_mut();
-            let grey = bytemuck::bytes_of(&0.0f32);
-            mapped_range.copy_from_slice(grey);
-        }
-
-        color_buffer.unmap();
-
         let view = View {
             position: Vector4::new(0.1, 0.2, 0.3, 1.0),
             look_dir: Vector4::new(1.0, 0.0, 0.0, 0.0),
+            aspect_ratio: 1.0,
+            fov: 90.0,
         };
 
         let view_buffer = device.create_buffer(&BufferDescriptor {
@@ -198,12 +218,46 @@ impl Renderer {
             device,
             queue,
             surface_format,
+            depth_buffer,
             pipeline_layout,
             fullscreen_pipeline,
             bind_group_layout,
-            color_buffer,
             view_buffer,
+            blocks: Vec::new(),
         })
+    }
+
+    pub fn add_block(&mut self, game: &Game, position: Vector3i16, block: &Block) {
+        let mut data = Vec::new();
+
+        data.push(position.x as i32 as u32);
+        data.push(position.y as i32 as u32);
+        data.push(position.z as i32 as u32);
+
+        for z in 0..Block::SIZE {
+            for y in 0..Block::SIZE {
+                for x in 0..Block::SIZE {
+                    let node = block.get(x, y, z);
+                    let is_normal = game
+                        .nodes
+                        .get(node.id as usize)
+                        .map(|node| matches!(node.draw_type, DrawType::Normal))
+                        .unwrap_or(false);
+
+                    if is_normal {
+                        data.push(0xEEEEEEEE);
+                    } else {
+                        data.push(0x00000000u32);
+                    }
+                }
+            }
+        }
+
+        self.blocks.push(self.device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(data.as_slice()),
+            usage: BufferUsages::STORAGE,
+        }));
     }
 
     pub fn set_view(&mut self, view: View) {
@@ -226,25 +280,31 @@ impl Renderer {
             a: 1.0,
         };
 
-        let bind_group = self.device.create_bind_group(&BindGroupDescriptor {
-            label: None,
-            layout: &self.bind_group_layout,
-            entries: &[
-                BindGroupEntry {
-                    binding: 0,
-                    resource: self.color_buffer.as_entire_binding(),
-                },
-                BindGroupEntry {
-                    binding: 1,
-                    resource: self.view_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
         let command_list = {
             let mut encoder = self
                 .device
                 .create_command_encoder(&CommandEncoderDescriptor { label: None });
+
+            let bind_groups = self
+                .blocks
+                .iter()
+                .map(|block| {
+                    self.device.create_bind_group(&BindGroupDescriptor {
+                        label: None,
+                        layout: &self.bind_group_layout,
+                        entries: &[
+                            BindGroupEntry {
+                                binding: 0,
+                                resource: block.as_entire_binding(),
+                            },
+                            BindGroupEntry {
+                                binding: 1,
+                                resource: self.view_buffer.as_entire_binding(),
+                            },
+                        ],
+                    })
+                })
+                .collect::<Vec<_>>();
 
             {
                 let view = frame.texture.create_view(&TextureViewDescriptor::default());
@@ -258,11 +318,21 @@ impl Renderer {
                         },
                         resolve_target: None,
                     }],
-                    depth_stencil_attachment: None,
+                    depth_stencil_attachment: Some(RenderPassDepthStencilAttachment {
+                        view: &self.depth_buffer,
+                        depth_ops: Some(Operations {
+                            load: LoadOp::Clear(1.0),
+                            store: true,
+                        }),
+                        stencil_ops: None,
+                    }),
                 });
-                render_pass.set_bind_group(0, &bind_group, &[]);
                 render_pass.set_pipeline(&self.fullscreen_pipeline);
-                render_pass.draw(0..3, 0..1);
+
+                for bind_group in &bind_groups {
+                    render_pass.set_bind_group(0, bind_group, &[]);
+                    render_pass.draw(0..3, 0..1);
+                }
             }
 
             encoder.finish()

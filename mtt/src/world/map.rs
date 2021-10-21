@@ -24,7 +24,9 @@ impl Map {
         self.dirty_blocks.push_back(pos);
     }
 
-    pub fn dirty_blocks(&mut self) -> &mut VecDeque<Vector3i16> {
-        &mut self.dirty_blocks
+    pub fn dirty_blocks(&mut self) -> VecDeque<Vector3i16> {
+        let mut dirty = VecDeque::new();
+        std::mem::swap(&mut dirty, &mut self.dirty_blocks);
+        dirty
     }
 }
