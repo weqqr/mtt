@@ -4,18 +4,6 @@ use std::io::{Read, Write};
 
 const PROTOCOL_ID: u32 = 0x4F457403;
 
-#[derive(thiserror::Error, Debug)]
-pub enum ProtocolError {
-    #[error("protocol ID mismatch (got {0:08X})")]
-    IdMismatch(u32),
-
-    #[error("unknown packet type: {0}")]
-    UnknownPacketType(u8),
-
-    #[error("unknown control type: {0}")]
-    UnknownControlType(u8),
-}
-
 #[derive(Debug)]
 pub enum Control {
     Ack {
@@ -58,7 +46,7 @@ impl Serialize for Control {
             },
             2 => Control::Ping,
             3 => Control::Disco,
-            _ => bail!(ProtocolError::UnknownControlType(ty)),
+            _ => bail!("unknown control type: {}", ty),
         })
     }
 }
@@ -139,7 +127,7 @@ impl Serialize for PacketHeader {
     fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
         let protocol_id = u32::deserialize(r)?;
 
-        ensure!(protocol_id == PROTOCOL_ID, ProtocolError::IdMismatch(protocol_id));
+        ensure!(protocol_id == PROTOCOL_ID, "protocol ID mismatch (got {0:08X})", protocol_id);
 
         let peer_id = u16::deserialize(r)?;
         let channel = u8::deserialize(r)?;
@@ -157,7 +145,7 @@ impl Serialize for PacketHeader {
             0 => PacketType::Control(Control::deserialize(r)?),
             1 => PacketType::Original,
             2 => PacketType::Split(Split::deserialize(r)?),
-            _ => bail!(ProtocolError::UnknownPacketType(ty)),
+            _ => bail!("unknown packet type: {}", ty),
         };
 
         Ok(Self {

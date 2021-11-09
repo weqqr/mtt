@@ -53,18 +53,18 @@ impl Serialize for Block {
         let mut data = Vec::new();
         decoder.read_to_end(&mut data)?;
 
-        let mut reader = Cursor::new(data);
+        let r = &mut Cursor::new(data);
 
-        let _flags = u8::deserialize(&mut reader)?;
-        let _lighting_complete = u16::deserialize(&mut reader)?;
+        let _flags = u8::deserialize(r)?;
+        let _lighting_complete = u16::deserialize(r)?;
 
-        let content_width = u8::deserialize(&mut reader)?;
-        let params_width = u8::deserialize(&mut reader)?;
+        let content_width = u8::deserialize(r)?;
+        let params_width = u8::deserialize(r)?;
         anyhow::ensure!(content_width == 2, "invalid content width");
         anyhow::ensure!(params_width == 2, "invalid params width");
 
         let mut node_data = vec![0; Block::VOLUME * 4];
-        reader.read_exact(&mut node_data)?;
+        r.read_exact(&mut node_data)?;
 
         Ok(Self { node_data })
     }

@@ -334,7 +334,7 @@ pub struct Node {
     pub tiles_overlay: Vec<Tile>,
     pub tiles_special: Vec<Tile>,
     pub color: Rgb,
-    pub palette_name: String,
+    pub palette_name: Option<String>,
     pub waving: u8,
     pub connect_sides: u8,
     pub connects_to: Vec<u16>,
@@ -357,8 +357,8 @@ impl Serialize for Node {
 
     fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
         // length of serialized NodeDef
-        // TODO: Reader should be limited to this size
-        let _ = u16::deserialize(r)?;
+        let nodedef_size = u16::deserialize(r)?;
+        let r = &mut r.take(nodedef_size as u64);
 
         let version = u8::deserialize(r)?;
         anyhow::ensure!(version >= 13);
@@ -409,6 +409,7 @@ impl Serialize for Node {
         let color = Rgb::deserialize(r)?;
 
         let palette_name = String::deserialize(r)?;
+        let palette_name = palette_name.is_empty().then(|| palette_name);
         let waving = u8::deserialize(r)?;
         let connect_sides = u8::deserialize(r)?;
         let connects_to_count = u16::deserialize(r)?;

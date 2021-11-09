@@ -920,7 +920,6 @@ dependencies = [
  "sha2",
  "shaderc",
  "srp",
- "thiserror",
  "tokio",
  "wgpu",
  "winit",
