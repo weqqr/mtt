@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod client;
+mod media;
 mod net;
 mod renderer;
 
