@@ -1,10 +1,10 @@
 pub mod node;
 
 use crate::game::node::{Argb, DrawType, Lighting, Node, Rgb};
-use crate::serialize::Serialize;
 use anyhow::Result;
 use flate2::read::ZlibDecoder;
 use log::info;
+use mtt_serialize::Serialize;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 

@@ -1,4 +1,4 @@
-use crate::serialize::Serialize;
+use mtt_serialize::Serialize;
 use std::io::{Cursor, Read, Write};
 
 #[derive(Debug, Clone)]

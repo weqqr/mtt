@@ -1,10 +1,10 @@
 use crate::game::node::DrawType;
 use crate::game::Game;
-use crate::math::{Vector3i16, Vector4};
-use crate::world::Block;
 use anyhow::{Context, Result};
 use bytemuck::Pod;
 use log::error;
+use mtt_core::math::{Vector3i16, Vector4};
+use mtt_core::world::Block;
 use shaderc::{CompileOptions, Compiler, ShaderKind};
 use std::borrow::Cow;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};

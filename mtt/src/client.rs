@@ -1,12 +1,12 @@
 use crate::game::Game;
-use crate::math::Vector3;
-use crate::net::clientbound::ClientBound;
-use crate::net::serverbound::{ClientReady, GotBlocks, Init2};
 use crate::net::{connect, Credentials, Request, Response};
-use crate::serialize::{RawBytesUnsized, Serialize};
-use crate::world::World;
 use anyhow::Result;
 use log::warn;
+use mtt_core::math::Vector3;
+use mtt_core::world::World;
+use mtt_protocol::clientbound::ClientBound;
+use mtt_protocol::serverbound::{ClientReady, GotBlocks, Init2};
+use mtt_serialize::{RawBytesUnsized, Serialize};
 use std::io::Cursor;
 use tokio::sync::mpsc;
 
@@ -37,6 +37,7 @@ impl Client {
                 reliable: true,
                 channel: 0,
             })?,
+            ClientBound::AnnounceMedia(media) => {}
             ClientBound::TimeOfDay(time_of_day) => {
                 world.time = time_of_day.time as f32;
                 world.time_speed = time_of_day.time_speed;

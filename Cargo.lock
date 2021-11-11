@@ -35,9 +35,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.44"
+version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61604a8f862e1d5c3229fdd78f8b02c68dcf73a4c4b05fd636d12240aaa242c1"
+checksum = "ee10e43ae4a853c0a3591d4e2ada1719e553be18199d9da9d4a83f5927c2f5c7"
 
 [[package]]
 name = "arrayref"
@@ -912,17 +912,30 @@ dependencies = [
  "anyhow",
  "bitflags",
  "bytemuck",
- "byteorder",
  "env_logger",
  "flate2",
  "log",
+ "mtt_core",
  "mtt_macros",
+ "mtt_protocol",
+ "mtt_serialize",
  "sha2",
  "shaderc",
  "srp",
  "tokio",
  "wgpu",
  "winit",
+]
+
+[[package]]
+name = "mtt_core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "byteorder",
+ "mtt_macros",
+ "mtt_serialize",
  "zstd",
 ]
 
@@ -933,6 +946,25 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "mtt_protocol"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "mtt_core",
+ "mtt_macros",
+ "mtt_serialize",
+]
+
+[[package]]
+name = "mtt_serialize"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "byteorder",
 ]
 
 [[package]]

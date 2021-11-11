@@ -2,18 +2,15 @@
 
 mod client;
 mod game;
-mod math;
 mod net;
 mod renderer;
-mod serialize;
-mod world;
 
 use crate::client::Client;
 use crate::game::Game;
 use crate::net::Credentials;
 use crate::renderer::{Renderer, View};
-use crate::world::World;
 use anyhow::Result;
+use mtt_core::world::World;
 use tokio::runtime::Runtime;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};

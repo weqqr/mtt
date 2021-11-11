@@ -1,7 +1,9 @@
-use crate::math::{Vector3, Vector3i16};
-use crate::serialize::{RawBytes16, RawBytes32};
-use crate::world::Block;
+use mtt_core::math::{Vector3, Vector3i16};
+use mtt_core::world::Block;
 use mtt_macros::{packet, Serialize};
+use mtt_serialize::{RawBytes16, RawBytes32, Serialize};
+use std::collections::HashMap;
+use std::io::{Read, Write};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Hello {
@@ -73,9 +75,33 @@ pub struct NodeDef {
     pub data: RawBytes32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct AnnounceMedia {
-    // TODO
+    pub digests: HashMap<String, Vec<u8>>,
+    pub content_servers: Vec<String>,
+}
+
+impl Serialize for AnnounceMedia {
+    fn serialize<W: Write>(&self, _w: &mut W) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> anyhow::Result<Self> {
+        let mut digests = HashMap::new();
+        let count = u16::deserialize(r)?;
+        for _ in 0..count {
+            let name = String::deserialize(r)?;
+            let digest = base64::decode(String::deserialize(r)?)?;
+            digests.insert(name, digest);
+        }
+
+        let content_servers = String::deserialize(r)?.split(',').map(|s| s.to_owned()).collect();
+
+        Ok(Self {
+            digests,
+            content_servers,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -1,10 +1,10 @@
-use crate::net::clientbound::ClientBound;
-use crate::net::packet::{Control, PacketHeader, PacketType, Reliability};
-use crate::net::serverbound::{Handshake, Init, ServerBound, SrpBytesA, SrpBytesM};
 use crate::net::Credentials;
-use crate::serialize::Serialize;
 use anyhow::Result;
 use log::{debug, info};
+use mtt_protocol::clientbound::ClientBound;
+use mtt_protocol::packet::{Control, PacketHeader, PacketType, Reliability};
+use mtt_protocol::serverbound::{Handshake, Init, ServerBound, SrpBytesA, SrpBytesM};
+use mtt_serialize::Serialize;
 use sha2::Sha256;
 use srp::client::{srp_private_key, SrpClient};
 use std::collections::HashMap;

@@ -1,10 +1,7 @@
 use crate::net::connection::connection_task;
 use tokio::net::ToSocketAddrs;
 
-pub mod clientbound;
 pub mod connection;
-pub mod packet;
-pub mod serverbound;
 
 pub use self::connection::{Request, Response};
 use tokio::sync::mpsc;

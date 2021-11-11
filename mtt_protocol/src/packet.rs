@@ -1,5 +1,5 @@
-use crate::serialize::Serialize;
 use anyhow::{bail, ensure, Result};
+use mtt_serialize::Serialize;
 use std::io::{Read, Write};
 
 const PROTOCOL_ID: u32 = 0x4F457403;

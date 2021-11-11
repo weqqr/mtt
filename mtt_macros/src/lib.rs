@@ -53,7 +53,7 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
     });
 
     quote! {
-        impl crate::serialize::Serialize for #ident {
+        impl mtt_serialize::Serialize for #ident {
             fn serialize<W: std::io::Write>(&self, w: &mut W) -> anyhow::Result<()> {
                 match self {
                     #(#serialize_variants),*
@@ -134,7 +134,7 @@ pub fn derive_serialize(input: proc_macro::TokenStream) -> proc_macro::TokenStre
     });
 
     let tokens = quote! {
-        impl #impl_generics crate::serialize::Serialize for #ident #ty_generics #where_clause {
+        impl #impl_generics mtt_serialize::Serialize for #ident #ty_generics #where_clause {
             fn serialize<W: std::io::Write>(&self, w: &mut W) -> anyhow::Result<()> {
                 #(#serialize_fields)*
                 Ok(())

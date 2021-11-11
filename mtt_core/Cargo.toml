@@ -1,0 +1,15 @@
+[package]
+name = "mtt_core"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mtt_macros = { path = "../mtt_macros" }
+mtt_serialize = { path = "../mtt_serialize" }
+
+anyhow = "1.0.45"
+byteorder = "1.4.3"
+bytemuck = "1.7.2"
+zstd = "0.9.0"

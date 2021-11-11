@@ -1,5 +1,5 @@
-use crate::serialize::{RawBytes16, RawBytesUnsized};
 use mtt_macros::{packet, Serialize};
+use mtt_serialize::{RawBytes16, RawBytesUnsized};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Handshake {}
