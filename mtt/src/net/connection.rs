@@ -1,8 +1,8 @@
 use crate::net::clientbound::ClientBound;
 use crate::net::packet::{Control, PacketHeader, PacketType, Reliability};
-use crate::net::serverbound::ServerBound;
+use crate::net::serverbound::{Handshake, Init, ServerBound, SrpBytesA, SrpBytesM};
 use crate::net::Credentials;
-use crate::serialize::{RawBytes16, Serialize};
+use crate::serialize::Serialize;
 use anyhow::Result;
 use log::{debug, info};
 use sha2::Sha256;
@@ -86,7 +86,7 @@ impl Connection {
 
     async fn send_and_wait_for<F>(
         &mut self,
-        packet: ServerBound,
+        packet: impl Into<ServerBound> + Clone,
         reliable: bool,
         channel: u8,
         criterion: F,
@@ -185,7 +185,8 @@ impl Connection {
         packet
     }
 
-    async fn send_packet(&mut self, packet: ServerBound, reliable: bool, channel: u8) -> Result<()> {
+    async fn send_packet(&mut self, packet: impl Into<ServerBound>, reliable: bool, channel: u8) -> Result<()> {
+        let packet = packet.into();
         debug!("SEND {:?}", packet);
         let mut data = Vec::new();
         packet.serialize(&mut data)?;
@@ -279,13 +280,13 @@ pub enum Response {
 }
 
 async fn perform_handshake(conn: &mut Connection, player_name: String, response_tx: &Sender<Response>) -> Result<()> {
-    let packet = ServerBound::Handshake {};
+    let packet = Handshake {};
     conn.send_and_wait_for(packet, true, 0, |packet| {
         matches!(packet.header.ty, PacketType::Control(Control::SetPeerId { .. }))
     })
     .await?;
 
-    let packet = ServerBound::Init {
+    let packet = Init {
         max_serialization_version: 29,
         supported_compression_modes: 0,
         min_protocol_version: 40,
@@ -309,20 +310,20 @@ async fn perform_auth(conn: &mut Connection, credentials: &Credentials, response
     let srp_client = SrpClient::<Sha256>::new(&a, &srp::groups::G_2048);
     let a = srp_client.get_a_pub();
 
-    let packet = ServerBound::SrpBytesA {
-        data: RawBytes16(a),
+    let packet = SrpBytesA {
+        data: a.into(),
         based_on: 1,
     };
 
     conn.send_packet(packet, true, 1).await?;
 
-    let (salt, b_pub) = loop {
+    let (salt, b_pub): (Vec<u8>, Vec<u8>) = loop {
         let response = conn.receive_packet().await?;
         match response.body {
             Some(ClientBound::Hello { .. }) => {
                 println!("Ignoring extraneous ClientBound::Hello during auth");
             }
-            Some(ClientBound::SrpBytesSB { s, b }) => break (s.0, b.0),
+            Some(ClientBound::SrpBytesSB(srp)) => break (srp.s.into(), srp.b.into()),
             Some(packet) => response_tx.send(Response::Receive(packet)).await?,
             _ => (),
         }
@@ -334,8 +335,8 @@ async fn perform_auth(conn: &mut Connection, credentials: &Credentials, response
     let verifier = srp_client
         .process_reply_with_username_and_salt(credentials.name.as_bytes(), &salt, &private_key, &b_pub)
         .unwrap();
-    let packet = ServerBound::SrpBytesM {
-        data: RawBytes16(verifier.get_proof().to_vec()),
+    let packet = SrpBytesM {
+        data: verifier.get_proof().to_vec().into(),
     };
     conn.send_packet(packet, true, 1).await?;
 

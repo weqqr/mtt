@@ -21,23 +21,10 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
         let v_ident = &variant.ident;
         let id = parse_id(variant);
 
-        let field_names = variant.fields.iter().map(|field| {
-            let ident = &field.ident;
-            quote! { ref #ident }
-        });
-
-        let serialize_fields = variant.fields.iter().map(|field| {
-            let ident = &field.ident;
-
-            quote! {
-                #ident.serialize(w)?;
-            }
-        });
-
         quote! {
-            #ident::#v_ident { #(#field_names),* } => {
+            #ident::#v_ident(pkt) => {
                 (#id as u16).serialize(w)?;
-                #(#serialize_fields)*
+                pkt.serialize(w)?;
             }
         }
     });
@@ -45,21 +32,22 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
     let deserialize_variants = input.variants.iter().map(|variant| {
         let v_ident = &variant.ident;
         let id = parse_id(variant);
-
-        let deserialize_fields = variant.fields.iter().map(|field| {
-            let ident = &field.ident;
-            let ty = &field.ty;
-
-            quote! {
-                #ident: #ty::deserialize(r)?,
-            }
-        });
+        let ty = variant.fields.iter().nth(0).unwrap();
 
         quote! {
-             #id => {
-                Ok(#ident::#v_ident {
-                    #(#deserialize_fields)*
-                })
+             #id => Ok(#ident::#v_ident(#ty::deserialize(r)?)),
+        }
+    });
+
+    let from_impls = input.variants.iter().map(|variant| {
+        let v_ident = &variant.ident;
+        let ty = variant.fields.iter().nth(0).unwrap();
+
+        quote! {
+            impl From<#ty> for #ident {
+                fn from(v: #ty) -> Self {
+                    #ident::#v_ident(v)
+                }
             }
         }
     });
@@ -76,11 +64,13 @@ fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
             fn deserialize<R: std::io::Read>(r: &mut R) -> anyhow::Result<Self> {
                 let id = u16::deserialize(r)?;
                 match id {
-                    #(#deserialize_variants),*
+                    #(#deserialize_variants)*
                     _ => anyhow::bail!("unknown packet id: {}", id),
                 }
             }
         }
+
+        #(#from_impls)*
     }
 }
 
@@ -107,6 +97,9 @@ pub fn packet(_args: proc_macro::TokenStream, input: proc_macro::TokenStream) ->
         #packet_enum
         #serialize_impl
     };
+
+    // panic!("{}", tokens);
+
     tokens.into()
 }
 

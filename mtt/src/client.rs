@@ -1,7 +1,7 @@
 use crate::game::Game;
 use crate::math::Vector3;
 use crate::net::clientbound::ClientBound;
-use crate::net::serverbound::ServerBound;
+use crate::net::serverbound::{ClientReady, GotBlocks, Init2};
 use crate::net::{connect, Credentials, Request, Response};
 use crate::serialize::{RawBytesUnsized, Serialize};
 use crate::world::World;
@@ -30,51 +30,54 @@ impl Client {
     fn handle_packet(&mut self, game: &mut Game, world: &mut World, packet: ClientBound) -> Result<()> {
         match packet {
             ClientBound::AuthAccept { .. } => self.request_tx.blocking_send(Request::Send {
-                packet: ServerBound::Init2 {
+                packet: Init2 {
                     language_code: "".to_string(),
-                },
+                }
+                .into(),
                 reliable: true,
                 channel: 0,
             })?,
-            ClientBound::TimeOfDay { time, time_speed } => {
-                world.time = time as f32;
-                world.time_speed = time_speed;
+            ClientBound::TimeOfDay(time_of_day) => {
+                world.time = time_of_day.time as f32;
+                world.time_speed = time_of_day.time_speed;
             }
-            ClientBound::NodeDef { data } => {
-                *game = Game::deserialize_nodes(&data.0)?;
+            ClientBound::NodeDef(nodedef) => {
+                *game = Game::deserialize_nodes(&nodedef.data.0)?;
                 self.request_tx.blocking_send(Request::Send {
-                    packet: ServerBound::ClientReady {
+                    packet: ClientReady {
                         version_major: 5,
                         version_minor: 5,
                         version_patch: 0,
                         reserved: 0,
                         full_version: format!("mtt {}", env!("CARGO_PKG_VERSION")),
                         formspec_version: 4,
-                    },
+                    }
+                    .into(),
                     reliable: true,
                     channel: 0,
                 })?;
             }
-            ClientBound::MovePlayer { position, yaw, pitch } => {
-                world.player.position = position / BS;
+            ClientBound::MovePlayer(move_player) => {
+                world.player.position = move_player.position / BS;
                 // Adjust position by player height
                 // world.player.position.y += 1.6;
-                world.player.look_dir = Vector3::from_euler_angles(pitch, yaw);
+                world.player.look_dir = Vector3::from_euler_angles(move_player.pitch, move_player.yaw);
                 println!(
                     "pos={:?} pitch={} yaw={} look_dir={:?}",
-                    world.player.position, pitch, yaw, world.player.look_dir
+                    world.player.position, move_player.pitch, move_player.yaw, world.player.look_dir
                 );
             }
-            ClientBound::BlockData { position, block } => {
-                world.map.update_or_set(position, block);
+            ClientBound::BlockData(block_data) => {
+                world.map.update_or_set(block_data.position, block_data.block);
                 let mut blocks = Cursor::new(Vec::new());
-                position.serialize(&mut blocks)?;
+                block_data.position.serialize(&mut blocks)?;
 
                 self.request_tx.blocking_send(Request::Send {
-                    packet: ServerBound::GotBlocks {
+                    packet: GotBlocks {
                         count: 1,
                         blocks: RawBytesUnsized(blocks.into_inner()),
-                    },
+                    }
+                    .into(),
                     reliable: true,
                     channel: 0,
                 })?;

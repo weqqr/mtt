@@ -127,7 +127,11 @@ impl Serialize for PacketHeader {
     fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
         let protocol_id = u32::deserialize(r)?;
 
-        ensure!(protocol_id == PROTOCOL_ID, "protocol ID mismatch (got {0:08X})", protocol_id);
+        ensure!(
+            protocol_id == PROTOCOL_ID,
+            "protocol ID mismatch (got {0:08X})",
+            protocol_id
+        );
 
         let peer_id = u16::deserialize(r)?;
         let channel = u8::deserialize(r)?;
