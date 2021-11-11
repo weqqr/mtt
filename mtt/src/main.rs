@@ -1,15 +1,14 @@
 #![allow(dead_code)]
 
 mod client;
-mod game;
 mod net;
 mod renderer;
 
 use crate::client::Client;
-use crate::game::Game;
 use crate::net::Credentials;
 use crate::renderer::{Renderer, View};
 use anyhow::Result;
+use mtt_core::game::Game;
 use mtt_core::world::World;
 use tokio::runtime::Runtime;
 use winit::dpi::PhysicalSize;

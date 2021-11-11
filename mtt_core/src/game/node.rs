@@ -1,6 +1,6 @@
+use crate::math::Aabb;
 use anyhow::Result;
 use bitflags::bitflags;
-use mtt_core::math::Aabb;
 use mtt_macros::Serialize;
 use mtt_serialize::Serialize;
 use std::collections::HashMap;

@@ -1,8 +1,8 @@
-use crate::game::node::DrawType;
-use crate::game::Game;
 use anyhow::{Context, Result};
 use bytemuck::Pod;
 use log::error;
+use mtt_core::game::node::DrawType;
+use mtt_core::game::Game;
 use mtt_core::math::{Vector3i16, Vector4};
 use mtt_core::world::Block;
 use shaderc::{CompileOptions, Compiler, ShaderKind};

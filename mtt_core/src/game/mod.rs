@@ -3,7 +3,6 @@ pub mod node;
 use crate::game::node::{Argb, DrawType, Lighting, Node, Rgb};
 use anyhow::Result;
 use flate2::read::ZlibDecoder;
-use log::info;
 use mtt_serialize::Serialize;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
@@ -63,7 +62,6 @@ impl Game {
         anyhow::ensure!(version == 1);
 
         let count = u16::deserialize(r)?;
-        info!("Deserializing {} nodes", count);
 
         // Total length of serialized nodes
         let _ = u32::deserialize(r)?;

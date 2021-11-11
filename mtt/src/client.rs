@@ -1,7 +1,7 @@
-use crate::game::Game;
 use crate::net::{connect, Credentials, Request, Response};
 use anyhow::Result;
 use log::warn;
+use mtt_core::game::Game;
 use mtt_core::math::Vector3;
 use mtt_core::world::World;
 use mtt_protocol::clientbound::ClientBound;
