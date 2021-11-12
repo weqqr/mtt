@@ -1,7 +1,11 @@
+mod image;
+
 use anyhow::{Context, Result};
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::PathBuf;
+use log::warn;
+use crate::media::image::Image;
 
 pub struct MediaStorage {
     cache_dir: PathBuf,
@@ -45,9 +49,20 @@ impl MediaStorage {
         self.cache_dir.join(encode_hex(digest)).exists()
     }
 
-    pub fn get(&self, digest: &[u8]) -> Option<Vec<u8>> {
+    pub fn get(&self, name: &str) -> Option<Vec<u8>> {
+        let digest = self.digests.get(name)?;
         let path = self.cache_dir.join(encode_hex(digest));
         std::fs::read(path).ok()
+    }
+
+    pub fn get_image(&self, name: &str) -> Option<Image> {
+        if name.ends_with("png") {
+            let data = self.get(name)?;
+            Image::load_png(&data).ok()
+        } else {
+            warn!("Unsupported texture format: {}", name);
+            None
+        }
     }
 
     pub fn insert(&self, name: &str, data: &Vec<u8>) -> Result<()> {

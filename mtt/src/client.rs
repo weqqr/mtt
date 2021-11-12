@@ -16,6 +16,8 @@ const BS: f32 = 10.0;
 pub struct Client {
     request_tx: mpsc::Sender<Request>,
     response_rx: mpsc::Receiver<Response>,
+    media_ready: bool,
+    nodes_ready: bool,
 }
 
 impl Client {
@@ -25,6 +27,8 @@ impl Client {
         Self {
             request_tx,
             response_rx,
+            media_ready: false,
+            nodes_ready: false,
         }
     }
 
@@ -34,6 +38,22 @@ impl Client {
             reliable,
             channel,
         })?)
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.media_ready && self.nodes_ready
+    }
+
+    fn send_client_ready(&self) -> Result<()> {
+        let packet = ClientReady {
+            version_major: 5,
+            version_minor: 5,
+            version_patch: 0,
+            reserved: 0x77,
+            full_version: format!("mtt {}", env!("CARGO_PKG_VERSION")),
+            formspec_version: 4,
+        };
+        self.send(packet, true, 0)
     }
 
     fn handle_auth_accept(&mut self, _packet: AuthAccept) -> Result<()> {
@@ -58,6 +78,14 @@ impl Client {
             media.insert(&name, &data)?;
         }
 
+        if packet.bunch_id == packet.bunch_count - 1 {
+            self.media_ready = true;
+        }
+
+        if self.is_ready() {
+            self.send_client_ready()?;
+        }
+
         Ok(())
     }
 
@@ -68,15 +96,11 @@ impl Client {
 
     fn handle_nodedef(&mut self, game: &mut Game, packet: NodeDef) -> Result<()> {
         *game = Game::deserialize_nodes(&packet.data.0)?;
-        let packet = ClientReady {
-            version_major: 5,
-            version_minor: 5,
-            version_patch: 0,
-            reserved: 0x77,
-            full_version: format!("mtt {}", env!("CARGO_PKG_VERSION")),
-            formspec_version: 4,
-        };
-        self.send(packet, true, 0)?;
+        self.nodes_ready = true;
+
+        if self.is_ready() {
+            self.send_client_ready()?;
+        }
 
         Ok(())
     }

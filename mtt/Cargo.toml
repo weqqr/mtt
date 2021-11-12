@@ -26,6 +26,7 @@ srp = { git = "https://github.com/weqqr/PAKEs", branch = "hn_xor_hg_fix" }
 tokio = { version = "1.12.0", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 
 # Graphics
+png = { git = "https://github.com/image-rs/image-png", rev = "c24fc93134ce82579595912230f9a3aed33bb1fc" }
 shaderc = "0.7.3"
 wgpu = { version = "0.11", features = ["spirv"] }
 winit = "0.25.0"
