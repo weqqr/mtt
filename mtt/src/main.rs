@@ -6,6 +6,7 @@ mod net;
 mod renderer;
 
 use crate::client::Client;
+use crate::media::MediaStorage;
 use crate::net::Credentials;
 use crate::renderer::{Renderer, View};
 use anyhow::Result;
@@ -18,6 +19,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 
 pub struct App {
+    media: MediaStorage,
     renderer: Renderer,
     runtime: Runtime,
     client: Client,
@@ -32,6 +34,7 @@ impl App {
             .with_inner_size(PhysicalSize::new(1280, 720))
             .build(event_loop)?;
 
+        let media = MediaStorage::new();
         let renderer = runtime.block_on(Renderer::new(window))?;
 
         let server_address = std::env::args().nth(1).unwrap();
@@ -49,6 +52,7 @@ impl App {
         let world = World::new();
 
         Ok(Self {
+            media,
             renderer,
             runtime,
             client,

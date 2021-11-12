@@ -98,8 +98,6 @@ pub fn packet(_args: proc_macro::TokenStream, input: proc_macro::TokenStream) ->
         #serialize_impl
     };
 
-    // panic!("{}", tokens);
-
     tokens.into()
 }
 
