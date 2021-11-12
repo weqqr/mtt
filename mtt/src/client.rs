@@ -1,3 +1,4 @@
+use crate::media::MediaStorage;
 use crate::net::{connect, Credentials, Request, Response};
 use anyhow::Result;
 use log::warn;
@@ -5,7 +6,7 @@ use mtt_core::game::Game;
 use mtt_core::math::Vector3;
 use mtt_core::world::World;
 use mtt_protocol::clientbound::*;
-use mtt_protocol::serverbound::{ClientReady, GotBlocks, Init2, ServerBound};
+use mtt_protocol::serverbound::{ClientReady, GotBlocks, Init2, RequestMedia, ServerBound};
 use mtt_serialize::{RawBytesUnsized, Serialize};
 use std::io::Cursor;
 use tokio::sync::mpsc;
@@ -44,7 +45,19 @@ impl Client {
         Ok(())
     }
 
-    fn handle_announce_media(&mut self, _packet: AnnounceMedia) -> Result<()> {
+    fn handle_announce_media(&mut self, media: &mut MediaStorage, packet: AnnounceMedia) -> Result<()> {
+        media.set_digests(packet.digests);
+        let missing_files = media.missing_files();
+        let packet = RequestMedia { media: missing_files };
+        self.send(packet, true, 0)?;
+        Ok(())
+    }
+
+    fn handle_media(&mut self, media: &mut MediaStorage, packet: Media) -> Result<()> {
+        for (name, data) in packet.files {
+            media.insert(&name, &data)?;
+        }
+
         Ok(())
     }
 
@@ -59,7 +72,7 @@ impl Client {
             version_major: 5,
             version_minor: 5,
             version_patch: 0,
-            reserved: 0,
+            reserved: 0x77,
             full_version: format!("mtt {}", env!("CARGO_PKG_VERSION")),
             formspec_version: 4,
         };
@@ -87,10 +100,17 @@ impl Client {
         Ok(())
     }
 
-    fn handle_packet(&mut self, game: &mut Game, world: &mut World, packet: ClientBound) -> Result<()> {
+    fn handle_packet(
+        &mut self,
+        media: &mut MediaStorage,
+        game: &mut Game,
+        world: &mut World,
+        packet: ClientBound,
+    ) -> Result<()> {
         match packet {
             ClientBound::AuthAccept(packet) => self.handle_auth_accept(packet)?,
-            ClientBound::AnnounceMedia(packet) => self.handle_announce_media(packet)?,
+            ClientBound::AnnounceMedia(packet) => self.handle_announce_media(media, packet)?,
+            ClientBound::Media(packet) => self.handle_media(media, packet)?,
             ClientBound::TimeOfDay(packet) => self.handle_time_of_day(world, packet),
             ClientBound::NodeDef(packet) => self.handle_nodedef(game, packet)?,
             ClientBound::MovePlayer(packet) => self.handle_move_player(world, packet),
@@ -101,12 +121,12 @@ impl Client {
         Ok(())
     }
 
-    pub fn process_packets(&mut self, game: &mut Game, world: &mut World) {
+    pub fn process_packets(&mut self, media: &mut MediaStorage, game: &mut Game, world: &mut World) {
         while let Ok(response) = self.response_rx.try_recv() {
             match response {
                 Response::Disconnect => (),
                 Response::Error(err) => panic!("{}", err),
-                Response::Receive(packet) => self.handle_packet(game, world, packet).unwrap(),
+                Response::Receive(packet) => self.handle_packet(media, game, world, packet).unwrap(),
                 _ => (),
             }
         }

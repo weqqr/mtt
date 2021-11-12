@@ -34,7 +34,7 @@ impl App {
             .with_inner_size(PhysicalSize::new(1280, 720))
             .build(event_loop)?;
 
-        let media = MediaStorage::new();
+        let media = MediaStorage::new()?;
         let renderer = runtime.block_on(Renderer::new(window))?;
 
         let server_address = std::env::args().nth(1).unwrap();
@@ -73,7 +73,8 @@ impl App {
     }
 
     fn update(&mut self) {
-        self.client.process_packets(&mut self.game, &mut self.world);
+        self.client
+            .process_packets(&mut self.media, &mut self.game, &mut self.world);
         self.renderer.set_view(View {
             position: self.world.player.position.extend(0.0),
             look_dir: self.world.player.look_dir.extend(0.0),

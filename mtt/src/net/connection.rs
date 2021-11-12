@@ -2,7 +2,7 @@ use crate::net::Credentials;
 use anyhow::Result;
 use log::{debug, info};
 use mtt_protocol::clientbound::ClientBound;
-use mtt_protocol::packet::{Control, PacketHeader, PacketType, Reliability};
+use mtt_protocol::packet::{Control, PacketHeader, PacketType, Reliability, Split};
 use mtt_protocol::serverbound::{Handshake, Init, ServerBound, SrpBytesA, SrpBytesM};
 use mtt_serialize::Serialize;
 use sha2::Sha256;
@@ -62,6 +62,7 @@ pub struct Connection {
     peer_id: u16,
     seqnum: [u16; 3],
     incoming_splits: HashMap<u16, IncompleteSplit>,
+    split_seqnum: u16,
 }
 
 #[derive(Debug)]
@@ -81,6 +82,7 @@ impl Connection {
             seqnum: [0xFFDC; 3],
             peer_id: 0,
             incoming_splits: HashMap::new(),
+            split_seqnum: 0xFFDC,
         })
     }
 
@@ -228,16 +230,57 @@ impl Connection {
         Ok(())
     }
 
+    fn generate_seqnum(&mut self, channel: u8) -> u16 {
+        let seqnum = self.seqnum[channel as usize];
+        self.seqnum[channel as usize] = self.seqnum[channel as usize].wrapping_add(1);
+        seqnum
+    }
+
+    fn generate_split_seqnum(&mut self) -> u16 {
+        let seqnum = self.split_seqnum;
+        self.split_seqnum = self.split_seqnum.wrapping_add(1);
+        seqnum
+    }
+
+    async fn send_split(&mut self, payload: &[u8], channel: u8) -> Result<()> {
+        let seqnum = self.generate_split_seqnum();
+        let chunk_count = (payload.len() + SPLIT_THRESHOLD - 1) / SPLIT_THRESHOLD;
+        let chunk_count: u16 = chunk_count.try_into()?;
+
+        for (chunk_number, chunk) in payload.chunks(SPLIT_THRESHOLD).enumerate() {
+            let packet_header = PacketHeader {
+                peer_id: self.peer_id,
+                channel,
+                reliability: Reliability::Reliable {
+                    seqnum: self.generate_seqnum(channel),
+                },
+                ty: PacketType::Split(Split {
+                    chunk_number: chunk_number.try_into()?,
+                    chunk_count,
+                    seqnum,
+                }),
+            };
+
+            let mut data = Vec::new();
+            packet_header.serialize(&mut data)?;
+            data.write_all(chunk)?;
+
+            self.socket.send(&data).await?;
+        }
+
+        Ok(())
+    }
+
     async fn send(&mut self, payload: &[u8], reliable: bool, channel: u8) -> Result<()> {
         if payload.len() > SPLIT_THRESHOLD {
-            todo!("split packets")
+            self.send_split(payload, channel).await?;
+            return Ok(());
         }
 
         let reliability = if reliable {
             let reliability = Reliability::Reliable {
-                seqnum: self.seqnum[channel as usize],
+                seqnum: self.generate_seqnum(channel),
             };
-            self.seqnum[channel as usize] = self.seqnum[channel as usize].wrapping_add(1);
             reliability
         } else {
             Reliability::Unreliable

@@ -14,7 +14,7 @@ fn parse_id(variant: &Variant) -> Lit {
         .unwrap()
 }
 
-fn make_serialize_impl(input: &ItemEnum) -> TokenStream {
+fn make_packet_impls(input: &ItemEnum) -> TokenStream {
     let ident = &input.ident;
 
     let serialize_variants = input.variants.iter().map(|variant| {
@@ -88,11 +88,13 @@ fn make_packet_enum(input: &ItemEnum) -> TokenStream {
     quote! { #(#attrs)* #vis enum #ident { #(#variants),* } }
 }
 
+// TODO: Remove packet specifics and make it a generic "impl Serialize for enum" macro
+// TODO: Convert to proc_derive macro
 #[proc_macro_attribute]
 pub fn packet(_args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as ItemEnum);
     let packet_enum = make_packet_enum(&input);
-    let serialize_impl = make_serialize_impl(&input);
+    let serialize_impl = make_packet_impls(&input);
     let tokens = quote! {
         #packet_enum
         #serialize_impl

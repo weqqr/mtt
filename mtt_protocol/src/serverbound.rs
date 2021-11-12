@@ -1,5 +1,6 @@
 use mtt_macros::{packet, Serialize};
-use mtt_serialize::{RawBytes16, RawBytesUnsized};
+use mtt_serialize::{RawBytes16, RawBytesUnsized, Serialize};
+use std::io::{Read, Write};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Handshake {}
@@ -22,6 +23,28 @@ pub struct Init2 {
 pub struct GotBlocks {
     pub count: u8,
     pub blocks: RawBytesUnsized,
+}
+
+#[derive(Debug, Clone)]
+pub struct RequestMedia {
+    pub media: Vec<String>,
+}
+
+impl Serialize for RequestMedia {
+    fn serialize<W: Write>(&self, w: &mut W) -> anyhow::Result<()> {
+        let len: u16 = self.media.len().try_into()?;
+        len.serialize(w)?;
+
+        for elem in &self.media {
+            elem.serialize(w)?;
+        }
+
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(_r: &mut R) -> anyhow::Result<Self> {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -59,6 +82,9 @@ pub enum ServerBound {
 
     #[id = 0x24]
     GotBlocks(GotBlocks),
+
+    #[id = 0x40]
+    RequestMedia(RequestMedia),
 
     #[id = 0x43]
     ClientReady(ClientReady),

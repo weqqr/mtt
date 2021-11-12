@@ -70,6 +70,39 @@ pub struct MovePlayer {
     pub yaw: f32,
 }
 
+#[derive(Debug, Clone)]
+pub struct Media {
+    pub bunch_count: u16,
+    pub bunch_id: u16,
+    pub files: Vec<(String, Vec<u8>)>,
+}
+
+impl Serialize for Media {
+    fn serialize<W: Write>(&self, _w: &mut W) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> anyhow::Result<Self> {
+        let bunch_count = u16::deserialize(r)?;
+        let bunch_id = u16::deserialize(r)?;
+        let file_count = u32::deserialize(r)?;
+
+        let mut files = Vec::new();
+        for _ in 0..file_count {
+            let name = String::deserialize(r)?;
+            let data = RawBytes32::deserialize(r)?.0;
+
+            files.push((name, data));
+        }
+
+        Ok(Self {
+            bunch_count,
+            bunch_id,
+            files,
+        })
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct NodeDef {
     pub data: RawBytes32,
@@ -207,6 +240,9 @@ pub enum ClientBound {
 
     #[id = 0x34]
     MovePlayer(MovePlayer),
+
+    #[id = 0x38]
+    Media(Media),
 
     #[id = 0x3A]
     NodeDef(NodeDef),
