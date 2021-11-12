@@ -1,7 +1,7 @@
 use crate::media::MediaStorage;
 use crate::net::{connect, Credentials, Request, Response};
 use anyhow::Result;
-use log::warn;
+use log::{info, warn};
 use mtt_core::game::Game;
 use mtt_core::math::Vector3;
 use mtt_core::world::World;
@@ -124,6 +124,11 @@ impl Client {
         Ok(())
     }
 
+    fn handle_chat_message(&mut self, packet: ChatMessage) {
+        let sender = packet.sender.is_empty().then(|| "!").unwrap_or(packet.sender.as_str());
+        info!("CHAT: <{}> {}", sender, packet.message);
+    }
+
     fn handle_packet(
         &mut self,
         media: &mut MediaStorage,
@@ -139,6 +144,7 @@ impl Client {
             ClientBound::NodeDef(packet) => self.handle_nodedef(game, packet)?,
             ClientBound::MovePlayer(packet) => self.handle_move_player(world, packet),
             ClientBound::BlockData(packet) => self.handle_block_data(world, packet)?,
+            ClientBound::ChatMessage(packet) => self.handle_chat_message(packet),
             _ => warn!("Ignoring {:?}", packet),
         }
 

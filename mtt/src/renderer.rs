@@ -95,8 +95,8 @@ impl Renderer {
             },
         );
 
-        let vertex_shader = compile_glsl(include_str!("shaders/triangle.vert"), ShaderKind::Vertex);
-        let fragment_shader = compile_glsl(include_str!("shaders/triangle.frag"), ShaderKind::Fragment);
+        let vertex_shader = compile_glsl(include_str!("shaders/fullscreen.vert"), ShaderKind::Vertex);
+        let fragment_shader = compile_glsl(include_str!("shaders/block.frag"), ShaderKind::Fragment);
 
         let vertex_shader = unsafe {
             device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {

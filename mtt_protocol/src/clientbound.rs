@@ -1,7 +1,7 @@
 use mtt_core::math::{Vector3, Vector3i16};
 use mtt_core::world::Block;
 use mtt_macros::{packet, Serialize};
-use mtt_serialize::{RawBytes16, RawBytes32, Serialize};
+use mtt_serialize::{RawBytes16, RawBytes32, Serialize, StringSerializeExt};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 
@@ -43,9 +43,29 @@ pub struct CsmRestrictionFlags {
     pub range: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct ChatMessage {
-    // TODO
+    pub version: u8,
+    pub ty: u8,
+    pub sender: String,
+    pub message: String,
+    pub time: u64,
+}
+
+impl Serialize for ChatMessage {
+    fn serialize<W: Write>(&self, _w: &mut W) -> anyhow::Result<()> {
+        todo!()
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> anyhow::Result<Self> {
+        Ok(ChatMessage {
+            version: u8::deserialize(r)?,
+            ty: u8::deserialize(r)?,
+            sender: String::deserialize_utf16(r)?,
+            message: String::deserialize_utf16(r)?,
+            time: u64::deserialize(r)?,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]

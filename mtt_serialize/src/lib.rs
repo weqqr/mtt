@@ -73,6 +73,23 @@ impl Serialize for String {
     }
 }
 
+pub trait StringSerializeExt: Sized {
+    fn deserialize_utf16<R: Read>(r: &mut R) -> Result<Self>;
+}
+
+impl StringSerializeExt for String {
+    fn deserialize_utf16<R: Read>(r: &mut R) -> Result<Self> {
+        let len = u16::deserialize(r)? as usize;
+        let mut data = Vec::with_capacity(len);
+
+        for _ in 0..len {
+            data.push(u16::deserialize(r)?);
+        }
+
+        Ok(String::from_utf16(&data)?)
+    }
+}
+
 impl<T: Serialize> Serialize for Vec<T> {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
         let len = self.len();

@@ -1,11 +1,11 @@
 mod image;
 
+use crate::media::image::Image;
 use anyhow::{Context, Result};
+use log::warn;
 use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::PathBuf;
-use log::warn;
-use crate::media::image::Image;
 
 pub struct MediaStorage {
     cache_dir: PathBuf,

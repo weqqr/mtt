@@ -72,6 +72,15 @@ impl App {
         }
     }
 
+    fn process_dirty_blocks(&mut self) {
+        for pos in &self.world.map.dirty_blocks() {
+            let block = self.world.map.get(pos);
+            if let Some(block) = block {
+                self.renderer.add_block(&self.game, *pos, block);
+            }
+        }
+    }
+
     fn update(&mut self) {
         self.client
             .process_packets(&mut self.media, &mut self.game, &mut self.world);
@@ -82,12 +91,7 @@ impl App {
             fov: 90.0,
         });
 
-        for pos in &self.world.map.dirty_blocks() {
-            let block = self.world.map.get(pos);
-            if let Some(block) = block {
-                self.renderer.add_block(&self.game, *pos, block);
-            }
-        }
+        self.process_dirty_blocks();
     }
 
     fn repaint(&mut self) {
