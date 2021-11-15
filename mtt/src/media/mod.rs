@@ -1,4 +1,4 @@
-mod image;
+pub mod image;
 
 use crate::media::image::Image;
 use anyhow::{Context, Result};
@@ -7,9 +7,14 @@ use std::collections::HashMap;
 use std::fmt::Write;
 use std::path::PathBuf;
 
+type ImageIndex = usize;
+
 pub struct MediaStorage {
     cache_dir: PathBuf,
     digests: HashMap<String, Vec<u8>>,
+    image_index: HashMap<String, usize>,
+    indexed_images: Vec<Image>,
+    last_index: ImageIndex,
 }
 
 fn encode_hex(data: &[u8]) -> String {
@@ -31,6 +36,9 @@ impl MediaStorage {
         Ok(Self {
             cache_dir,
             digests: HashMap::new(),
+            image_index: HashMap::new(),
+            indexed_images: Vec::new(),
+            last_index: 0,
         })
     }
 
@@ -55,10 +63,23 @@ impl MediaStorage {
         std::fs::read(path).ok()
     }
 
-    pub fn get_image(&self, name: &str) -> Option<Image> {
+    fn store_image_in_cache(&mut self, image: Image) -> ImageIndex {
+        self.indexed_images.push(image);
+        let stored_image_index = self.last_index;
+        self.last_index += 1;
+        stored_image_index
+    }
+
+    pub fn load_image(&mut self, name: &str) -> Option<&Image> {
+        if let Some(index) = self.image_index.get(name) {
+            return self.indexed_images.get(*index);
+        }
+
         if name.ends_with("png") {
             let data = self.get(name)?;
-            Image::load_png(&data).ok()
+            let image = Image::load_png(&data).ok()?;
+            let index = self.store_image_in_cache(image);
+            self.indexed_images.get(index)
         } else {
             warn!("Unsupported texture format: {}", name);
             None

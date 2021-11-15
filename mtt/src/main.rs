@@ -84,6 +84,7 @@ impl App {
     fn update(&mut self) {
         self.client
             .process_packets(&mut self.media, &mut self.game, &mut self.world);
+
         self.renderer.set_view(View {
             position: self.world.player.position.extend(0.0),
             look_dir: self.world.player.look_dir.extend(0.0),

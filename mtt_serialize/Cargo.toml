@@ -8,4 +8,3 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.45"
 byteorder = "1.4.3"
-bytemuck = "1.7.2"

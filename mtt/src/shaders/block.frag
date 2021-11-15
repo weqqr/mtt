@@ -16,6 +16,8 @@ layout (set = 0, binding = 1) uniform View {
     float fov;
 } view;
 
+layout (binding = 2) uniform sampler2D texture;
+
 const float PI = 3.1415926;
 const vec3 UP = vec3(0.0, 1.0, 0.0);
 const uint BLOCK_SIZE = 16;
