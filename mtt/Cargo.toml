@@ -10,6 +10,7 @@ mtt_core = { path = "../mtt_core" }
 mtt_macros = { path = "../mtt_macros" }
 mtt_protocol = { path = "../mtt_protocol" }
 mtt_serialize = { path = "../mtt_serialize" }
+mtt_world = { path = "../mtt_world" }
 
 # Utilities
 anyhow = "1.0.45"

@@ -922,6 +922,7 @@ dependencies = [
  "mtt_macros",
  "mtt_protocol",
  "mtt_serialize",
+ "mtt_world",
  "png",
  "sha2",
  "shaderc",
@@ -971,6 +972,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "byteorder",
+]
+
+[[package]]
+name = "mtt_world"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]

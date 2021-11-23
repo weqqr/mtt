@@ -4,7 +4,7 @@ use anyhow::Result;
 use log::{info, warn};
 use mtt_core::game::Game;
 use mtt_core::math::Vector3;
-use mtt_core::world::World;
+use mtt_core::world::WorldState;
 use mtt_protocol::clientbound::*;
 use mtt_protocol::serverbound::{ClientReady, GotBlocks, Init2, RequestMedia, ServerBound};
 use mtt_serialize::{RawBytesUnsized, Serialize};
@@ -89,7 +89,7 @@ impl Client {
         Ok(())
     }
 
-    fn handle_time_of_day(&mut self, world: &mut World, packet: TimeOfDay) {
+    fn handle_time_of_day(&mut self, world: &mut WorldState, packet: TimeOfDay) {
         world.time = packet.time as f32;
         world.time_speed = packet.time_speed;
     }
@@ -105,12 +105,12 @@ impl Client {
         Ok(())
     }
 
-    fn handle_move_player(&mut self, world: &mut World, packet: MovePlayer) {
+    fn handle_move_player(&mut self, world: &mut WorldState, packet: MovePlayer) {
         world.player.position = packet.position / BS;
         world.player.look_dir = Vector3::from_euler_angles(packet.pitch, packet.yaw);
     }
 
-    fn handle_block_data(&mut self, world: &mut World, packet: BlockData) -> Result<()> {
+    fn handle_block_data(&mut self, world: &mut WorldState, packet: BlockData) -> Result<()> {
         world.map.update_or_set(packet.position, packet.block);
         let mut blocks = Cursor::new(Vec::new());
         packet.position.serialize(&mut blocks)?;
@@ -133,7 +133,7 @@ impl Client {
         &mut self,
         media: &mut MediaStorage,
         game: &mut Game,
-        world: &mut World,
+        world: &mut WorldState,
         packet: ClientBound,
     ) -> Result<()> {
         match packet {
@@ -151,7 +151,7 @@ impl Client {
         Ok(())
     }
 
-    pub fn process_packets(&mut self, media: &mut MediaStorage, game: &mut Game, world: &mut World) {
+    pub fn process_packets(&mut self, media: &mut MediaStorage, game: &mut Game, world: &mut WorldState) {
         while let Ok(response) = self.response_rx.try_recv() {
             match response {
                 Response::Disconnect => (),

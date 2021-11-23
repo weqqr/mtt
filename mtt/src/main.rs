@@ -9,9 +9,10 @@ use crate::client::Client;
 use crate::media::MediaStorage;
 use crate::net::Credentials;
 use crate::renderer::{Renderer, View};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use mtt_core::game::Game;
-use mtt_core::world::World;
+use mtt_core::world::WorldState;
+use mtt_world::World;
 use tokio::runtime::Runtime;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
@@ -24,7 +25,7 @@ pub struct App {
     runtime: Runtime,
     client: Client,
     game: Game,
-    world: World,
+    world: WorldState,
 }
 
 impl App {
@@ -49,7 +50,7 @@ impl App {
         );
 
         let game = Game::new();
-        let world = World::new();
+        let world = WorldState::new();
 
         Ok(Self {
             media,
@@ -103,7 +104,12 @@ impl App {
 fn main() -> Result<()> {
     env_logger::init();
 
-    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    let world = World::open(std::env::args().nth(1).context("world path is required")?)?;
+    println!("{:?}", world.info);
+
+    Ok(())
+
+    /*    let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     let _enter = runtime.enter();
 
     let event_loop = EventLoop::new();
@@ -124,5 +130,5 @@ fn main() -> Result<()> {
             }
             _ => (),
         }
-    });
+    });*/
 }

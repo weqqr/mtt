@@ -19,14 +19,14 @@ impl Player {
     }
 }
 
-pub struct World {
+pub struct WorldState {
     pub player: Player,
     pub time: f32,
     pub time_speed: f32,
     pub map: Map,
 }
 
-impl World {
+impl WorldState {
     pub fn new() -> Self {
         Self {
             player: Player::new(),
