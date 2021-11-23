@@ -13,7 +13,7 @@ use anyhow::Result;
 use mtt_core::game::Game;
 use mtt_core::world::WorldState;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Receiver;
 use tokio::sync::oneshot;
 use winit::dpi::PhysicalSize;
 use winit::event::{Event, WindowEvent};
@@ -134,12 +134,16 @@ impl AppState {
 pub struct App {
     resources: SharedResources,
     state: AppState,
-    events_rx: Receiver<Event<'static, ()>>,
-    exit_tx: oneshot::Sender<()>,
+    events: Receiver<Event<'static, ()>>,
+    exit: oneshot::Sender<()>,
 }
 
 impl App {
-    pub async fn new(event_loop: &EventLoop<()>) -> Result<(Self, Sender<Event<'static, ()>>, oneshot::Receiver<()>)> {
+    pub async fn new(
+        event_loop: &EventLoop<()>,
+        events: Receiver<Event<'static, ()>>,
+        exit: oneshot::Sender<()>,
+    ) -> Result<Self> {
         let window = WindowBuilder::new()
             .with_min_inner_size(PhysicalSize::new(320, 180))
             .with_inner_size(PhysicalSize::new(1280, 720))
@@ -150,24 +154,17 @@ impl App {
 
         let resources = SharedResources { media, renderer };
 
-        let (events_tx, events_rx) = tokio::sync::mpsc::channel(10);
-        let (exit_tx, exit_rx) = oneshot::channel();
-
-        Ok((
-            Self {
-                resources,
-                state: AppState::Connecting(Connecting::new()),
-                events_rx,
-                exit_tx,
-            },
-            events_tx,
-            exit_rx,
-        ))
+        Ok(Self {
+            resources,
+            state: AppState::Connecting(Connecting::new()),
+            events,
+            exit,
+        })
     }
 
     fn run(mut self, runtime: Runtime) {
         let _enter = runtime.enter();
-        self.state.run(&mut self.resources, self.events_rx, self.exit_tx);
+        self.state.run(&mut self.resources, self.events, self.exit);
     }
 }
 
@@ -177,18 +174,21 @@ fn main() -> Result<()> {
     let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
 
     let event_loop = EventLoop::new();
-    let (app, events, mut exit) = runtime.block_on(App::new(&event_loop))?;
+
+    let (events_tx, events_rx) = tokio::sync::mpsc::channel(10);
+    let (exit_tx, mut exit_rx) = oneshot::channel();
+    let app = runtime.block_on(App::new(&event_loop, events_rx, exit_tx))?;
 
     std::thread::spawn(move || app.run(runtime));
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
 
-        if let Err(_) = events.blocking_send(event.to_static().unwrap()) {
+        if let Err(_) = events_tx.blocking_send(event.to_static().unwrap()) {
             *control_flow = ControlFlow::Exit;
         }
 
-        if let Ok(_) = exit.try_recv() {
+        if let Ok(_) = exit_rx.try_recv() {
             *control_flow = ControlFlow::Exit;
         }
     });

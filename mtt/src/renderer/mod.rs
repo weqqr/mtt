@@ -1,10 +1,6 @@
 use anyhow::{Context, Result};
 use bytemuck::{Pod, Zeroable};
-use log::error;
-use mtt_core::game::node::DrawType;
-use mtt_core::game::Game;
-use mtt_core::math::{Vector3i16, Vector4};
-use mtt_core::world::Block;
+use mtt_core::math::Vector4;
 use shaderc::{CompileOptions, Compiler, ShaderKind};
 use std::borrow::Cow;
 use std::time::Instant;
@@ -15,6 +11,7 @@ use winit::window::Window;
 
 pub struct RendererBase {
     window: Window,
+    compiler: Compiler,
     instance: Instance,
     surface: Surface,
     adapter: Adapter,
@@ -23,8 +20,14 @@ pub struct RendererBase {
     surface_format: TextureFormat,
 }
 
+// This is required to move shaderc across threads.
+// TODO: Switch to Naga, use WGSL or load precompiled SPIR-V binaries
+unsafe impl Send for RendererBase {}
+
 impl RendererBase {
     pub async fn new(window: Window) -> Result<Self> {
+        let compiler = Compiler::new().context("failed to initialize shader compiler")?;
+
         let instance = Instance::new(Backends::VULKAN);
 
         let surface = unsafe { instance.create_surface(&window) };
@@ -67,6 +70,7 @@ impl RendererBase {
 
         Ok(Self {
             window,
+            compiler,
             instance,
             surface,
             adapter,
@@ -76,14 +80,17 @@ impl RendererBase {
         })
     }
 
-    pub fn create_shader(&self, source: &[u32]) -> ShaderModule {
-        // SAFETY: is just an illusion
-        unsafe {
+    pub fn create_shader(&mut self, source: &str, kind: ShaderKind) -> Result<ShaderModule> {
+        let options = CompileOptions::new().unwrap();
+
+        let artifact = self.compiler.compile_into_spirv(source, kind, "<???>", "main", Some(&options))?;
+
+        Ok(unsafe {
             self.device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
                 label: None,
-                source: Cow::Borrowed(source),
+                source: Cow::Borrowed(artifact.as_binary()),
             })
-        }
+        })
     }
 
     pub fn resize(&mut self, size: PhysicalSize<u32>) {
@@ -126,15 +133,12 @@ pub struct LoadingScreen {
 }
 
 impl LoadingScreen {
-    pub fn new(base: &RendererBase) -> Self {
-        let vertex_shader = compile_glsl(include_str!("../shaders/fullscreen.vert"), ShaderKind::Vertex);
-        let fragment_shader = compile_glsl(
+    pub fn new(base: &mut RendererBase) -> Self {
+        let vertex_shader = base.create_shader(include_str!("../shaders/fullscreen.vert"), ShaderKind::Vertex).unwrap();
+        let fragment_shader = base.create_shader(
             &std::fs::read_to_string("mtt/src/shaders/loading.frag").unwrap(),
             ShaderKind::Fragment,
-        );
-
-        let vertex_shader = base.create_shader(&vertex_shader);
-        let fragment_shader = base.create_shader(&fragment_shader);
+        ).unwrap();
 
         let bind_group_layout = base.device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: None,
@@ -238,9 +242,6 @@ pub struct Renderer {
     base: RendererBase,
 
     loading: LoadingScreen,
-
-    view_buffer: Buffer,
-    blocks: Vec<Buffer>,
 }
 
 #[derive(Clone, Copy, Pod, Zeroable)]
@@ -252,83 +253,16 @@ pub struct View {
     pub fov: f32,
 }
 
-fn compile_glsl(source: &str, kind: ShaderKind) -> Vec<u32> {
-    let mut compiler = Compiler::new().unwrap();
-    let options = CompileOptions::new().unwrap();
-
-    let artifact = compiler.compile_into_spirv(source, kind, "<???>", "main", Some(&options));
-    match artifact {
-        Ok(artifact) => artifact.as_binary().to_owned(),
-        Err(err) => {
-            error!("{}", err);
-            panic!();
-        }
-    }
-}
-
 impl Renderer {
     pub async fn new(window: Window) -> Result<Self> {
-        let base = RendererBase::new(window).await?;
+        let mut base = RendererBase::new(window).await?;
 
-        let loading = LoadingScreen::new(&base);
-
-        let view = View {
-            position: Vector4::new(0.1, 0.2, 0.3, 1.0),
-            look_dir: Vector4::new(1.0, 0.0, 0.0, 0.0),
-            aspect_ratio: 1.0,
-            fov: 90.0,
-        };
-
-        let view_buffer = base.device.create_buffer_init(&BufferInitDescriptor {
-            label: None,
-            contents: bytemuck::bytes_of(&view),
-            usage: BufferUsages::UNIFORM | BufferUsages::MAP_WRITE,
-        });
+        let loading = LoadingScreen::new(&mut base);
 
         Ok(Renderer {
             base,
             loading,
-            view_buffer,
-            blocks: Vec::new(),
         })
-    }
-
-    pub fn add_block(&mut self, game: &Game, position: Vector3i16, block: &Block) {
-        let mut data = Vec::new();
-
-        data.push(position.x as i32 as u32);
-        data.push(position.y as i32 as u32);
-        data.push(position.z as i32 as u32);
-
-        for z in 0..Block::SIZE {
-            for y in 0..Block::SIZE {
-                for x in 0..Block::SIZE {
-                    let node = block.get(x, y, z);
-                    let is_normal = game
-                        .nodes
-                        .get(node.id as usize)
-                        .map(|node| matches!(node.draw_type, DrawType::Normal))
-                        .unwrap_or(false);
-
-                    if is_normal {
-                        data.push(0xEEEEEEEE);
-                    } else {
-                        data.push(0x00000000u32);
-                    }
-                }
-            }
-        }
-
-        self.blocks
-            .push(self.base.device.create_buffer_init(&BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(data.as_slice()),
-                usage: BufferUsages::STORAGE,
-            }));
-    }
-
-    pub fn set_view(&mut self, view: View) {
-        self.base.update_entire_buffer(&self.view_buffer, &view);
     }
 
     fn record_command_buffer(&self, view: &TextureView) -> CommandBuffer {
