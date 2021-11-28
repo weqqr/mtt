@@ -92,6 +92,19 @@ impl Vector3i16 {
     }
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, Serialize)]
+pub struct Vector3u16 {
+    pub x: u16,
+    pub y: u16,
+    pub z: u16,
+}
+
+impl Vector3u16 {
+    pub const fn new(x: u16, y: u16, z: u16) -> Self {
+        Self { x, y, z }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Aabb {
     min: Vector3,

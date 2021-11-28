@@ -1,5 +1,6 @@
 pub mod block;
 pub mod map;
+pub mod node;
 
 pub use self::block::Block;
 use crate::math::Vector3;
