@@ -11,7 +11,7 @@ impl Block {
     pub const SIZE: usize = 16;
     pub const VOLUME: usize = Block::SIZE.pow(3);
 
-    pub fn get(&self, x: usize, y: usize, z: usize) -> Node {
+    pub fn node(&self, x: usize, y: usize, z: usize) -> Node {
         let index = z * Block::SIZE * Block::SIZE + y * Block::SIZE + x;
         let id_hi = self.node_data[2 * index];
         let id_lo = self.node_data[2 * index + 1];
