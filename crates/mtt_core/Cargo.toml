@@ -14,4 +14,8 @@ bitflags = { workspace = true }
 byteorder = { workspace = true }
 bytemuck = { workspace = true, features = ["derive"] }
 flate2 = "1.0.28"
+glam = { workspace = true }
 zstd = "0.13.0"
+
+[lints]
+workspace = true

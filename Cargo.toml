@@ -10,3 +10,6 @@ byteorder = "1.5.0"
 glam = "0.25.0"
 thiserror = "1.0.51"
 winit = "0.28.0"
+
+[workspace.lints.clippy]
+new_without_default = "allow"

@@ -1,4 +1,5 @@
-use mtt_core::math::{Vector3, Vector3i16};
+use glam::Vec3;
+use mtt_core::math::Vector3i16;
 use mtt_core::world::Block;
 use mtt_macros::{packet, Serialize};
 use mtt_serialize::{RawBytes16, RawBytes32, Serialize, StringSerializeExt};
@@ -16,7 +17,7 @@ pub struct Hello {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct AuthAccept {
-    pub player_position: Vector3,
+    pub player_position: Vec3,
     pub seed: u64,
     pub send_interval: f32,
     pub supported_sudo_auth_methods: u32,
@@ -85,7 +86,7 @@ pub struct Hp {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MovePlayer {
-    pub position: Vector3,
+    pub position: Vec3,
     pub pitch: f32,
     pub yaw: f32,
 }

@@ -33,7 +33,7 @@ fn make_packet_impls(input: &ItemEnum) -> TokenStream {
     let deserialize_variants = input.variants.iter().map(|variant| {
         let v_ident = &variant.ident;
         let id = parse_id(variant);
-        let ty = variant.fields.iter().nth(0).unwrap();
+        let ty = variant.fields.iter().next().unwrap();
 
         quote! {
              #id => Ok(#ident::#v_ident(#ty::deserialize(r)?)),
@@ -42,7 +42,7 @@ fn make_packet_impls(input: &ItemEnum) -> TokenStream {
 
     let from_impls = input.variants.iter().map(|variant| {
         let v_ident = &variant.ident;
-        let ty = variant.fields.iter().nth(0).unwrap();
+        let ty = variant.fields.iter().next().unwrap();
 
         quote! {
             impl From<#ty> for #ident {

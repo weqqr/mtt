@@ -8,3 +8,7 @@ edition = "2021"
 [dependencies]
 anyhow = { workspace = true }
 byteorder = { workspace = true }
+glam = { workspace = true }
+
+[lints]
+workspace = true

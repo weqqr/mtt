@@ -20,7 +20,7 @@ impl Map {
     }
 
     pub fn update_or_set(&mut self, pos: Vector3i16, block: Block) {
-        self.blocks.insert(pos.clone(), block);
+        self.blocks.insert(pos, block);
         self.dirty_blocks.push_back(pos);
     }
 

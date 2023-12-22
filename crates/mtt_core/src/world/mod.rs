@@ -2,20 +2,21 @@ pub mod block;
 pub mod map;
 pub mod node;
 
+use glam::Vec3;
+
 pub use self::block::Block;
-use crate::math::Vector3;
 pub use crate::world::map::Map;
 
 pub struct Player {
-    pub position: Vector3,
-    pub look_dir: Vector3,
+    pub position: Vec3,
+    pub look_dir: Vec3,
 }
 
 impl Player {
     pub fn new() -> Self {
         Self {
-            position: Vector3::new(-10.0, 10.0, -10.0),
-            look_dir: Vector3::new(1.0, -1.0, 1.0).normalize(),
+            position: Vec3::new(-10.0, 10.0, -10.0),
+            look_dir: Vec3::new(1.0, -1.0, 1.0).normalize(),
         }
     }
 }

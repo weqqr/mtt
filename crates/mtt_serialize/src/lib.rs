@@ -1,5 +1,6 @@
 use anyhow::Result;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use glam::{Vec3, vec3};
 use std::io::{Read, Write};
 
 pub trait Serialize: Sized {
@@ -188,5 +189,23 @@ impl Serialize for RawBytesUnsized {
         let mut data = Vec::new();
         r.read_to_end(&mut data)?;
         Ok(Self(data))
+    }
+}
+
+impl Serialize for Vec3 {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        self.x.serialize(w)?;
+        self.y.serialize(w)?;
+        self.z.serialize(w)?;
+
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        let x = f32::deserialize(r)?;
+        let y = f32::deserialize(r)?;
+        let z = f32::deserialize(r)?;
+
+        Ok(vec3(x, y, z))
     }
 }

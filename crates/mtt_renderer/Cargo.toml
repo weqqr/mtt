@@ -15,3 +15,6 @@ pollster = "0.3.0"
 shaderc = "0.7.3"
 wgpu = "0.18.0"
 winit = { workspace = true }
+
+[lints]
+workspace = true

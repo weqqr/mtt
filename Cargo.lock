@@ -807,6 +807,7 @@ dependencies = [
  "bytemuck",
  "byteorder",
  "flate2",
+ "glam",
  "mtt_macros",
  "mtt_serialize",
  "zstd",
@@ -827,6 +828,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64",
+ "glam",
  "mtt_core",
  "mtt_macros",
  "mtt_serialize",
@@ -852,13 +854,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "byteorder",
-]
-
-[[package]]
-name = "mtt_world"
-version = "0.1.0"
-dependencies = [
- "thiserror",
+ "glam",
 ]
 
 [[package]]
