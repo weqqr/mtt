@@ -1,9 +1,8 @@
-pub mod camera;
 pub mod mesh;
 
 use crate::mesh::{GpuMesh, Mesh, Vertex};
 use anyhow::Result;
-use nalgebra_glm::vec3;
+use glam::vec3;
 use pollster::FutureExt;
 use shaderc::{Compiler, ShaderKind};
 use std::borrow::Cow;

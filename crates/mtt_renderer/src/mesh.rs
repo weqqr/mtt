@@ -1,4 +1,4 @@
-use nalgebra_glm::Vec3;
+use glam::Vec3;
 use wgpu::*;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
