@@ -46,8 +46,11 @@ impl Serialize for TileAnimation {
     }
 }
 
+#[derive(Debug, Clone)]
+struct TileFlags(u16);
+
 bitflags! {
-    struct TileFlags: u16 {
+    impl TileFlags: u16 {
         const BACK_FACE_CULLING   = 1 << 0;
         const TILEABLE_HORIZONTAL = 1 << 1;
         const TILEABLE_VERTICAL   = 1 << 2;

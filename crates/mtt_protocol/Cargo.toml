@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.51"
+anyhow = { workspace = true }
 base64 = "0.13.0"
 mtt_core = { path = "../mtt_core" }
 mtt_macros = { path = "../mtt_macros" }

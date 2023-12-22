@@ -62,8 +62,11 @@ pub struct Renderer {
 impl Renderer {
     pub fn new(window: Window) -> Result<Self> {
         let mut compiler = ShaderCompiler::new();
-        let instance = Instance::new(Backends::VULKAN);
-        let surface = unsafe { instance.create_surface(&window) };
+        let instance = Instance::new(InstanceDescriptor {
+            backends: Backends::VULKAN,
+            ..Default::default()
+        });
+        let surface = unsafe { instance.create_surface(&window).unwrap() };
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
                 power_preference: PowerPreference::HighPerformance,
@@ -85,7 +88,9 @@ impl Renderer {
             .block_on()
             .unwrap();
 
-        let surface_format = surface.get_preferred_format(&adapter).unwrap();
+        let surface_capabilities = surface.get_capabilities(&adapter);
+
+        let surface_format = surface_capabilities.formats[0];
         let mut mesh = Mesh::new();
         mesh.add_vertex(Vertex {
             position: vec3(0.0, 0.0, 0.0),
@@ -122,8 +127,9 @@ impl Renderer {
             fragment: Some(FragmentState {
                 module: &fragment_shader,
                 entry_point: "main",
-                targets: &[surface_format.into()],
+                targets: &[Some(surface_format.into())],
             }),
+            multiview: None,
         });
 
         let renderer = Self {
@@ -158,6 +164,8 @@ impl Renderer {
                 width: size.width,
                 height: size.height,
                 present_mode: PresentMode::Fifo,
+                alpha_mode: CompositeAlphaMode::Opaque,
+                view_formats: vec![],
             },
         );
     }
@@ -171,14 +179,16 @@ impl Renderer {
             let mut rp = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: None,
                 depth_stencil_attachment: None,
-                color_attachments: &[RenderPassColorAttachment {
+                color_attachments: &[Some(RenderPassColorAttachment {
                     view,
                     ops: Operations {
                         load: LoadOp::Clear(Color::BLACK),
-                        store: true,
+                        store: StoreOp::Store,
                     },
                     resolve_target: None,
-                }],
+                })],
+                timestamp_writes: None,
+                occlusion_query_set: None,
             });
             rp.set_pipeline(&self.pipeline);
             self.gpu_mesh.draw(&mut rp);

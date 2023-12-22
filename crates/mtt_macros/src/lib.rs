@@ -1,17 +1,18 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Data, DeriveInput, ItemEnum, Lit, Meta, MetaNameValue, Variant};
+use syn::{Data, DeriveInput, ItemEnum, Meta, MetaNameValue, Variant, Expr};
 
-fn parse_id(variant: &Variant) -> Lit {
+fn parse_id(variant: &Variant) -> Expr {
     variant
         .attrs
         .iter()
-        .find(|attr| attr.path.is_ident("id"))
-        .map(|attr| match attr.parse_meta().unwrap() {
-            Meta::NameValue(MetaNameValue { lit, .. }) => lit,
+        .find(|attr| attr.path().is_ident("id"))
+        .map(|attr| match &attr.meta {
+            Meta::NameValue(MetaNameValue { value, .. }) => value,
             _ => panic!("id must be a name-value attribute"),
         })
         .unwrap()
+        .clone()
 }
 
 fn make_packet_impls(input: &ItemEnum) -> TokenStream {
