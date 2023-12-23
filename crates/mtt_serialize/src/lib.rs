@@ -1,6 +1,6 @@
 use anyhow::Result;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use glam::{Vec3, vec3};
+use glam::{Vec3, vec3, i16vec3, I16Vec3};
 use std::io::{Read, Write};
 
 pub trait Serialize: Sized {
@@ -209,3 +209,22 @@ impl Serialize for Vec3 {
         Ok(vec3(x, y, z))
     }
 }
+
+impl Serialize for I16Vec3 {
+    fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
+        self.x.serialize(w)?;
+        self.y.serialize(w)?;
+        self.z.serialize(w)?;
+
+        Ok(())
+    }
+
+    fn deserialize<R: Read>(r: &mut R) -> Result<Self> {
+        let x = i16::deserialize(r)?;
+        let y = i16::deserialize(r)?;
+        let z = i16::deserialize(r)?;
+
+        Ok(i16vec3(x, y, z))
+    }
+}
+

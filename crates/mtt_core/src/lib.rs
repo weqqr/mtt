@@ -1,3 +1,3 @@
 pub mod game;
-pub mod math;
+pub mod spatial;
 pub mod world;

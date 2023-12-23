@@ -1,5 +1,4 @@
-use glam::Vec3;
-use mtt_core::math::Vector3i16;
+use glam::{Vec3, I16Vec3};
 use mtt_core::world::Block;
 use mtt_macros::{packet, Serialize};
 use mtt_serialize::{RawBytes16, RawBytes32, Serialize, StringSerializeExt};
@@ -25,7 +24,7 @@ pub struct AuthAccept {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct BlockData {
-    pub position: Vector3i16,
+    pub position: I16Vec3,
     pub block: Block,
 }
 

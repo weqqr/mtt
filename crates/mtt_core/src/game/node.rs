@@ -1,4 +1,4 @@
-use crate::math::Aabb;
+use crate::spatial::Aabb;
 use anyhow::Result;
 use bitflags::bitflags;
 use mtt_macros::Serialize;
@@ -381,7 +381,7 @@ impl Serialize for Node {
 
         let draw_type = DrawType::deserialize(r)?;
         let mesh = String::deserialize(r)?;
-        let mesh = mesh.is_empty().then(|| mesh);
+        let mesh = mesh.is_empty().then_some(mesh);
 
         let visual_scale = f32::deserialize(r)?;
 
@@ -412,7 +412,7 @@ impl Serialize for Node {
         let color = Rgb::deserialize(r)?;
 
         let palette_name = String::deserialize(r)?;
-        let palette_name = palette_name.is_empty().then(|| palette_name);
+        let palette_name = palette_name.is_empty().then_some(palette_name);
         let waving = u8::deserialize(r)?;
         let connect_sides = u8::deserialize(r)?;
         let connects_to_count = u16::deserialize(r)?;
