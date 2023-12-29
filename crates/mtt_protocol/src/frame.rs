@@ -75,7 +75,7 @@ impl Serialize for Split {
 }
 
 #[derive(Debug)]
-pub enum PacketType {
+pub enum FrameType {
     Control(Control),
     Original,
     Split(Split),
@@ -90,14 +90,14 @@ pub enum Reliability {
 }
 
 #[derive(Debug)]
-pub struct PacketHeader {
+pub struct FrameHeader {
     pub peer_id: u16,
     pub channel: u8,
     pub reliability: Reliability,
-    pub ty: PacketType,
+    pub ty: FrameType,
 }
 
-impl Serialize for PacketHeader {
+impl Serialize for FrameHeader {
     fn serialize<W: Write>(&self, w: &mut W) -> Result<()> {
         PROTOCOL_ID.serialize(w)?;
 
@@ -110,12 +110,12 @@ impl Serialize for PacketHeader {
         }
 
         match self.ty {
-            PacketType::Control(ref control) => {
+            FrameType::Control(ref control) => {
                 0u8.serialize(w)?;
                 control.serialize(w)?;
             }
-            PacketType::Original => 1u8.serialize(w)?,
-            PacketType::Split(ref split) => {
+            FrameType::Original => 1u8.serialize(w)?,
+            FrameType::Split(ref split) => {
                 2u8.serialize(w)?;
                 split.serialize(w)?;
             }
@@ -146,10 +146,10 @@ impl Serialize for PacketHeader {
         };
 
         let ty = match ty {
-            0 => PacketType::Control(Control::deserialize(r)?),
-            1 => PacketType::Original,
-            2 => PacketType::Split(Split::deserialize(r)?),
-            _ => bail!("unknown packet type: {}", ty),
+            0 => FrameType::Control(Control::deserialize(r)?),
+            1 => FrameType::Original,
+            2 => FrameType::Split(Split::deserialize(r)?),
+            _ => bail!("unknown frame type: {}", ty),
         };
 
         Ok(Self {
