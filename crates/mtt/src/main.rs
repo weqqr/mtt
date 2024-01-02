@@ -69,7 +69,12 @@ impl ClientThread {
             // Send all queued packets from client
             for packet in self.serverbound_rx.try_iter() {
                 println!("Send: {:?}", packet);
-                self.client.handle_input(mtt_protocol::Input::Packet(packet)).unwrap();
+                self.client
+                    .handle_input(mtt_protocol::Input::Packet {
+                        is_reliable: false,
+                        packet,
+                    })
+                    .unwrap();
             }
 
             // Handle I/O

@@ -13,7 +13,10 @@ pub mod serverbound;
 
 pub enum Input<'a> {
     Receive(&'a [u8]),
-    Packet(ServerBound),
+    Packet {
+        is_reliable: bool,
+        packet: ServerBound,
+    },
     None,
 }
 
@@ -34,6 +37,7 @@ pub struct Client {
     output_queue: VecDeque<Output>,
 
     peer_id: u16,
+    seqnum: u16,
 }
 
 impl Client {
@@ -43,6 +47,7 @@ impl Client {
             output_queue: VecDeque::new(),
 
             peer_id: 0,
+            seqnum: 0xF1FE,
         }
     }
 
@@ -93,9 +98,11 @@ impl Client {
             self.send_ack(frame_header.channel, seqnum)?;
         }
 
+        println!("{:?}", frame_header);
+
         match frame_header.ty {
             FrameType::Control(control) => self.handle_control(control),
-            _ => {},
+            _ => {}
         }
 
         Ok(())
@@ -106,11 +113,17 @@ impl Client {
         // }
     }
 
-    fn handle_serverbound_packet(&mut self, packet: ServerBound) -> Result<()> {
+    fn handle_serverbound_packet(&mut self, is_reliable: bool, packet: ServerBound) -> Result<()> {
+        let reliability = if is_reliable {
+            Reliability::Reliable { seqnum: self.seqnum }
+        } else {
+            Reliability::Unreliable
+        };
+
         let frame = FrameHeader {
             peer_id: self.peer_id,
             channel: 0,
-            reliability: Reliability::Unreliable,
+            reliability,
             ty: FrameType::Original,
         };
 
@@ -124,7 +137,7 @@ impl Client {
     pub fn handle_input(&mut self, input: Input) -> Result<()> {
         match input {
             Input::Receive(data) => self.handle_clientbound_data(data),
-            Input::Packet(packet) => self.handle_serverbound_packet(packet),
+            Input::Packet { is_reliable, packet } => self.handle_serverbound_packet(is_reliable, packet),
             Input::None => Ok(()),
         }
     }
