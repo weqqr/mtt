@@ -1,51 +1,18 @@
 pub mod mesh;
 
+use std::borrow::Cow;
+
 use crate::mesh::{GpuMesh, Mesh, Vertex};
 use anyhow::Result;
 use glam::vec3;
 use pollster::FutureExt;
-use shaderc::{Compiler, ShaderKind};
-use std::borrow::Cow;
-use std::path::Path;
 use wgpu::*;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
-pub struct ShaderCompiler {
-    compiler: Compiler,
-}
-
-impl ShaderCompiler {
-    fn new() -> Self {
-        let compiler = Compiler::new().unwrap();
-        Self { compiler }
-    }
-
-    fn load_shader(
-        &mut self,
-        device: &Device,
-        source_path: impl AsRef<Path>,
-        kind: ShaderKind,
-    ) -> Result<ShaderModule> {
-        let source_path = source_path.as_ref();
-        let path_str = source_path.as_os_str().to_string_lossy().into_owned();
-        let source = std::fs::read_to_string(source_path)?;
-        let artifact = self
-            .compiler
-            .compile_into_spirv(&source, kind, &path_str, "main", None)?;
-
-        Ok(unsafe {
-            device.create_shader_module_spirv(&ShaderModuleDescriptorSpirV {
-                label: None,
-                source: Cow::Borrowed(bytemuck::cast_slice(artifact.as_binary())),
-            })
-        })
-    }
-}
 
 #[allow(dead_code)]
 pub struct Renderer {
-    compiler: ShaderCompiler,
     window: Window,
     instance: Instance,
     surface: Surface,
@@ -60,7 +27,6 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn new(window: Window) -> Result<Self> {
-        let mut compiler = ShaderCompiler::new();
         let instance = Instance::new(InstanceDescriptor {
             backends: Backends::VULKAN,
             ..Default::default()
@@ -103,8 +69,17 @@ impl Renderer {
 
         let gpu_mesh = GpuMesh::upload(&device, &mesh);
 
-        let vertex_shader = compiler.load_shader(&device, "data/shaders/world.vert", ShaderKind::Vertex)?;
-        let fragment_shader = compiler.load_shader(&device, "data/shaders/world.frag", ShaderKind::Fragment)?;
+        let shader_source = include_str!("../../../data/shaders/world.wgsl");
+
+        let vertex_shader = device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
+        });
+
+        let fragment_shader = device.create_shader_module(ShaderModuleDescriptor {
+            label: None,
+            source: ShaderSource::Wgsl(Cow::Borrowed(shader_source)),
+        });
 
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: None,
@@ -117,7 +92,7 @@ impl Renderer {
             layout: Some(&pipeline_layout),
             vertex: VertexState {
                 module: &vertex_shader,
-                entry_point: "main",
+                entry_point: "vs_main",
                 buffers: &[Vertex::layout()],
             },
             primitive: Default::default(),
@@ -125,14 +100,13 @@ impl Renderer {
             multisample: Default::default(),
             fragment: Some(FragmentState {
                 module: &fragment_shader,
-                entry_point: "main",
+                entry_point: "fs_main",
                 targets: &[Some(surface_format.into())],
             }),
             multiview: None,
         });
 
         let renderer = Self {
-            compiler,
             window,
             instance,
             surface,
