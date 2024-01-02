@@ -794,6 +794,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mtt_core",
+ "mtt_protocol",
  "mtt_renderer",
  "winit",
 ]

@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 mtt_core = { path = "../mtt_core" }
+mtt_protocol = { path = "../mtt_protocol" }
 mtt_renderer = { path = "../mtt_renderer" }
 
 anyhow = { workspace = true }

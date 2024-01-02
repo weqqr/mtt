@@ -2,7 +2,8 @@ use std::collections::VecDeque;
 use std::io::{Cursor, Write};
 
 use crate::clientbound::ClientBound;
-use crate::frame::{Control, FrameHeader, Reliability, FrameType};
+use crate::frame::{Control, FrameHeader, FrameType, Reliability};
+use crate::serverbound::ServerBound;
 use anyhow::Result;
 use mtt_serialize::Serialize;
 
@@ -12,6 +13,7 @@ pub mod serverbound;
 
 pub enum Input<'a> {
     Receive(&'a [u8]),
+    Packet(ServerBound),
     None,
 }
 
@@ -71,11 +73,18 @@ impl Client {
         self.send_frame(header, &[])
     }
 
-    pub fn handle_input(&mut self, input: Input) -> Result<()> {
-        let Input::Receive(data) = input else {
-            return Ok(())
-        };
+    fn handle_control(&mut self, control: Control) {
+        match control {
+            Control::Ack { seqnum } => {}
+            Control::SetPeerId { peer_id } => {
+                self.peer_id = peer_id;
+            }
+            Control::Ping => {}
+            Control::Disco => {}
+        }
+    }
 
+    fn handle_clientbound_data(&mut self, data: &[u8]) -> Result<()> {
         let r = &mut Cursor::new(data);
 
         let frame_header = FrameHeader::deserialize(r)?;
@@ -84,12 +93,39 @@ impl Client {
             self.send_ack(frame_header.channel, seqnum)?;
         }
 
-        match self.state {
-            ConnectionState::Start => todo!(),
-            ConnectionState::Handshake => todo!(),
-            ConnectionState::InGame => todo!(),
+        match frame_header.ty {
+            FrameType::Control(control) => self.handle_control(control),
+            _ => {},
         }
 
         Ok(())
+        // match self.state {
+        //     ConnectionState::Start => todo!(),
+        //     ConnectionState::Handshake => todo!(),
+        //     ConnectionState::InGame => todo!(),
+        // }
+    }
+
+    fn handle_serverbound_packet(&mut self, packet: ServerBound) -> Result<()> {
+        let frame = FrameHeader {
+            peer_id: self.peer_id,
+            channel: 0,
+            reliability: Reliability::Unreliable,
+            ty: FrameType::Original,
+        };
+
+        let mut data = Vec::new();
+
+        packet.serialize(&mut data)?;
+
+        self.send_frame(frame, &data)
+    }
+
+    pub fn handle_input(&mut self, input: Input) -> Result<()> {
+        match input {
+            Input::Receive(data) => self.handle_clientbound_data(data),
+            Input::Packet(packet) => self.handle_serverbound_packet(packet),
+            Input::None => Ok(()),
+        }
     }
 }

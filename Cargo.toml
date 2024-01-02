@@ -13,3 +13,4 @@ winit = "0.28.0"
 
 [workspace.lints.clippy]
 new_without_default = "allow"
+single_match = "allow"
